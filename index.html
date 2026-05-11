@@ -35,9 +35,12 @@ html,body{height:100%;overflow:hidden;font-family:system-ui,sans-serif;backgroun
 /* MAP */
 #mapwrap{flex:1;overflow:hidden;position:relative;background:linear-gradient(180deg,#87CEEB 30%,#90EE90 100%)}
 #mapinner{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform}
-.CELL{width:48px;height:48px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;position:relative;cursor:pointer;flex-direction:column;border:1px solid transparent}
-.CELL.EM{border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.05)}
-.CELL.EM:hover{background:rgba(255,255,255,.18)}
+.CELL{width:48px;height:48px;display:flex;align-items:center;justify-content:center;font-size:1.8rem;position:relative;cursor:pointer;flex-direction:column;border:none;transition:filter .1s}
+.CELL.EM{outline:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.08)!important;z-index:1}
+.CELL.EM:hover{background:rgba(255,255,255,.22)!important}
+.CELL.HAS-BLDG{box-shadow:0 3px 0 rgba(0,0,0,.25)}
+.CELL.HAS-BLDG:active{filter:brightness(.88);transform:translateY(1px)}
+.CELL-LABLE{font-size:.38rem;color:rgba(255,255,255,.85);line-height:1;margin-top:-2px;font-weight:700;text-shadow:0 1px 2px rgba(0,0,0,.5);white-space:nowrap;overflow:hidden;max-width:46px;text-align:center}
 .CDOT{position:absolute;top:2px;right:2px;width:10px;height:10px;background:#FF6B35;border-radius:50%;border:1.5px solid #fff;animation:pu .8s infinite alternate}
 @keyframes pu{from{transform:scale(1)}to{transform:scale(1.3)}}
 .MCTRL{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px;z-index:10}
@@ -388,15 +391,25 @@ function undoSt(){
     for(var i=1;i<st.pts.length;i++)S.cvCtx.lineTo(st.pts[i].x,st.pts[i].y);S.cvCtx.stroke()
   })
 }
+function getApiKey(){try{return localStorage.getItem('mt_apikey')||''}catch(e){return''}}
 async function recognizeHW(isClock){
   var cv=document.getElementById('CC');if(!cv)return null;
+  var apiKey=getApiKey();
+  if(!apiKey){
+    var st=document.getElementById('OCR');
+    if(st)st.innerHTML='⚠️ 需要設定 API Key 才能使用手寫辨識<br><small style="color:#1976D2;cursor:pointer" onclick="go(\'settings\')">前往設定 →</small>';
+    return null
+  }
   var b64=cv.toDataURL('image/png').split(',')[1];
   var prompt=isClock?'Read the handwritten time. Reply ONLY with time in H:MM format (e.g. 3:30).':'Read the handwritten number. Reply ONLY with the integer (e.g. 42).';
   try{
-    var r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:20,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/png',data:b64}},{type:'text',text:prompt}]}]})});
-    var d=await r.json();var txt=d.content&&d.content[0]?d.content[0].text.trim():'';
+    var headers={'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'};
+    var r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:headers,body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:20,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:'image/png',data:b64}},{type:'text',text:prompt}]}]})});
+    var d=await r.json();
+    if(d.error){var st=document.getElementById('OCR');if(st)st.textContent='API 錯誤：'+d.error.message;return null}
+    var txt=d.content&&d.content[0]?d.content[0].text.trim():'';
     var m=txt.match(/\d+:\d+/)||txt.match(/\d+/);return m?m[0]:null
-  }catch(e){return null}
+  }catch(e){var st=document.getElementById('OCR');if(st)st.textContent='網路錯誤，請確認 API Key 是否正確';return null}
 }
 
 /* ======= MATH ======= */
@@ -510,6 +523,8 @@ function rHome(){
 function rTown(){
   var p=S.p,vis=Math.min(MSZ,p.landSize||25);
   var cells='',gridW=vis*CS,gridH=vis*CS;
+  var CAT_BG={deco:'#52B788',bldg:'#C68B52',farm:'#A8C84A',factory:'#7B97A8',animal:'#E8A84A'};
+  var CAT_BD={deco:'#2D6A4F',bldg:'#7A5230',farm:'#5A7A1A',factory:'#3A5A6A',animal:'#9A5A10'};
   for(var row=0;row<vis;row++){
     for(var col=0;col<vis;col++){
       var idx=row*MSZ+col,bId=p.town[idx],bd=bId?Bd(bId):null;
@@ -522,7 +537,18 @@ function rTown(){
         if((bd.coin||bd.exp)&&p.collect[idx]&&p.collect[idx].lastD!==today())dot=true;
       }
       var em=S.edit&&!bId;
-      cells+='<div class="CELL'+(S.edit?' EM':'')+'" id="c-'+idx+'" onclick="cClick('+idx+')" style="width:'+CS+'px;height:'+CS+'px;grid-column:'+(col+1)+';grid-row:'+(row+1)+'">'+(bd?'<span>'+bd.e+'</span>':'')+(em&&S.placing?'<div style="position:absolute;inset:0;background:rgba(76,175,80,.25);border-radius:4px;pointer-events:none"></div>':'')+(dot?'<div class="CDOT"></div>':'')+'</div>'
+      var bgStyle='';
+      if(bd){
+        var bg=CAT_BG[bd.cat]||'#52B788',bdr=CAT_BD[bd.cat]||'#2D6A4F';
+        bgStyle='background:'+bg+';border-bottom:3px solid '+bdr+';';
+      } else {
+        bgStyle='background:'+((row+col)%2===0?'#52B788':'#40916C')+';';
+      }
+      var plHL=em&&S.placing?'<div style="position:absolute;inset:0;background:rgba(76,175,80,.35);pointer-events:none;border:2px dashed rgba(255,255,255,.8)"></div>':'';
+      cells+='<div class="CELL'+(bd?' HAS-BLDG':'')+(S.edit?' EM':'')+'" id="c-'+idx+'" onclick="cClick('+idx+')" style="'+bgStyle+'width:'+CS+'px;height:'+CS+'px;grid-column:'+(col+1)+';grid-row:'+(row+1)+'">'+
+        (bd?'<span style="font-size:1.7rem;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))">'+bd.e+'</span><div style="font-size:.33rem;color:rgba(255,255,255,.9);font-weight:700;text-shadow:0 1px 2px rgba(0,0,0,.6);white-space:nowrap;overflow:hidden;max-width:46px;text-align:center;line-height:1;margin-top:1px">'+bd.n+'</div>':'<span style="font-size:.55rem;opacity:.15">🌿</span>')+
+        plHL+(dot?'<div class="CDOT"></div>':'')+
+        '</div>'
     }
   }
   // Inventory bar when editing
@@ -542,7 +568,7 @@ function rTown(){
     '<button class="EBTN'+(S.edit?' ON':'')+'" onclick="S.edit=!S.edit;S.placing=null;rTown()">'+(S.edit?'✏️ 完成':'✏️ 編輯')+'</button>'+
     '<div class="MCTRL"><button class="MBTN" onclick="chgZ(0.25)">+</button><button class="MBTN" onclick="chgZ(-0.25)">−</button><button class="MBTN" onclick="ctrMap()">⌂</button></div>'+
     '<div id="mapinner" style="position:absolute;top:0;left:0;transform-origin:0 0;transform:translate('+S.mx+'px,'+S.my+'px) scale('+S.zoom+');will-change:transform">'+
-    '<div style="display:grid;grid-template-columns:repeat('+vis+','+CS+'px);grid-template-rows:repeat('+vis+','+CS+'px);width:'+gridW+'px;height:'+gridH+'px">'+cells+'</div>'+
+    '<div style="display:grid;grid-template-columns:repeat('+vis+','+CS+'px);grid-template-rows:repeat('+vis+','+CS+'px);width:'+gridW+'px;height:'+gridH+'px;gap:'+(S.edit?'1px':'0')+'">'+cells+'</div>'+
     '</div>'+invBar+
     '</div>'+bnH('town');
   setupMap()
@@ -743,7 +769,7 @@ function rQuizMode(){
   m.tO.forEach(function(t){tH+='<div style="flex:1;background:'+(S.tl===t?'#FFF2EC':'#F7FBF7')+';border:1.5px solid '+(S.tl===t?'var(--warm)':'#C8E6C9')+';border-radius:10px;padding:9px 4px;text-align:center;cursor:pointer" onclick="S.tl='+t+';rQuizMode()"><div style="font-size:.88rem;font-weight:900">'+t+'</div><div style="font-size:.58rem;opacity:.65;margin-top:1px">分</div></div>'});
   tH+='</div></div>';
   var useHW=S.p.settings.useHandwriting;
-  var hwH='<div class="CARD" style="background:#F0FFF4"><div style="display:flex;align-items:center;justify-content:space-between"><div><div style="font-size:.8rem;font-weight:700">✏️ 手寫辨識模式</div><div style="font-size:.64rem;color:var(--t2)">用 AI 辨識手寫，可能較慢</div></div><div class="TOG'+(useHW?' ON':'')+'" onclick="S.p.settings.useHandwriting=!S.p.settings.useHandwriting;rQuizMode()"></div></div></div>';
+  var apiKey=getApiKey();var hwH='<div class="CARD" style="background:'+(apiKey?'#F0FFF4':'#FFF8F0')+';border-color:'+(apiKey?'#A5D6A7':'#FFE082')+'" ><div style="display:flex;align-items:center;justify-content:space-between"><div><div style="font-size:.8rem;font-weight:700">✏️ 手寫辨識模式</div><div style="font-size:.64rem;color:var(--t2)">'+(apiKey?'AI辨識手寫，需多等幾秒':'⚠️ 需先在設定頁輸入 API Key')+'</div></div><div class="TOG'+(useHW?' ON':'')+'" onclick="S.p.settings.useHandwriting=!S.p.settings.useHandwriting;rQuizMode()"></div></div></div>';
   app().innerHTML=tbH()+'<div class="PG FADE"><button class="BTN B-WH" style="align-self:flex-start;padding:7px 12px;font-size:.78rem" onclick="S.mode=null;rQuizMode()">← 返回</button><div style="background:'+m.c+'20;border:1.5px solid '+m.c+'40;border-radius:14px;padding:14px;display:flex;align-items:center;gap:12px"><div style="width:44px;height:44px;border-radius:12px;background:'+m.c+';display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:900;color:#fff;flex-shrink:0">'+m.sym+'</div><div><div style="font-weight:700;font-size:.9rem">'+m.n+'</div><div style="font-size:.62rem;color:var(--t2)">'+(['ck','99'].indexOf(S.mode)>=0?'10':'20')+'題 · 答對賺金幣</div></div></div>'+gH+tH+hwH+'<div class="CARD" style="background:#FFFDE7;border-color:#FFE082"><div style="font-size:.68rem;color:#795548">預估可賺（含魔法加成）</div><div style="font-size:1.6rem;font-weight:900;color:var(--gold2);margin-top:3px">🪙 '+Math.round(200*gm)+' ~ '+Math.round(420*gm)+'</div></div><button class="BTN B-OR BW" style="font-size:1rem;font-weight:900;padding:15px" onclick="startQ()">⚔️ 開始練習！</button></div>'+bnH('quiz')
 }
 function pickQM(id){S.mode=id;S.tl=Md(id).tO[0];if(id==='99'||id==='ck')S.grade='d1';rQuizMode()}
@@ -794,9 +820,13 @@ function submitAns(){
 async function submitHW(){
   var btn=document.getElementById('SUB');if(btn)btn.disabled=true;
   var q=S.qs[S.qi],st=document.getElementById('OCR');
-  if(st)st.textContent='辨識中…';
+  if(!getApiKey()){
+    if(st)st.innerHTML='⚠️ 未設定 API Key！<a onclick="go(\'settings\')" style="color:#1976D2;cursor:pointer;text-decoration:underline">前往設定 →</a>';
+    if(btn)btn.disabled=false;return
+  }
+  if(st)st.textContent='AI 辨識中…請稍候';
   var result=await recognizeHW(q.isClock);
-  if(!result){if(st)st.textContent='辨識失敗，請重寫';if(btn)btn.disabled=false;return}
+  if(!result){if(btn)btn.disabled=false;return}
   var ok=q.isClock?matchTime(result,q.h,q.m):(!isNaN(parseInt(result))&&parseInt(result)===q.a);
   if(st)st.textContent=(ok?'✓ 正確！':'✗ 正確：'+q.a)+' 辨識：'+result;procAns(ok,result)
 }
@@ -816,7 +846,9 @@ function startTimer(){clrT();S.tid=setInterval(function(){S.t--;var el=document.
 function finishQ(){
   while(S.qi<S.qs.length){S.qAns.push({ok:false,c:0});S.qi++}
   var cor=0;S.qAns.forEach(function(a){if(a.ok)cor++});
-  var n=S.qAns.length,pct=cor/n,tB=Math.floor(S.t/60)*5,aB=pct===1?50:pct>=.8?20:pct>=.6?10:0;
+  var n=S.qAns.length,pct=cor/n;
+  var tB=cor>0?Math.min(Math.floor(S.t/60)*5,cor*4):0;
+  var aB=cor>0?(pct===1?50:pct>=.8?20:pct>=.6?10:0):0;
   S.earned+=tB+aB;S.p.coins+=S.earned;S.p.totalC=(S.p.totalC||0)+cor;S.p.totalA=(S.p.totalA||0)+n;
   S.p.totalCE=(S.p.totalCE||0)+S.earned;if(S.maxStreak>(S.p.bestStreak||0))S.p.bestStreak=S.maxStreak;
   S.p.exp+=cor*5;checkLv();saveP();rResults(tB,aB)
@@ -882,8 +914,39 @@ function rStats(){
 
 /* ======= SETTINGS ======= */
 function rSettings(){
-  var p=S.p;
-  app().innerHTML=tbH()+'<div class="PG FADE"><div style="font-size:.92rem;font-weight:700">⚙️ 設定</div><div class="CARD"><div class="STROW"><div><div style="font-size:.85rem;font-weight:700">顯示名稱</div><div style="font-size:.68rem;color:var(--t2)">目前：'+p.displayName+'</div></div><button class="BTN B-WH" style="padding:6px 12px;font-size:.74rem" onclick="chgName()">修改</button></div><div class="STROW"><div><div style="font-size:.85rem;font-weight:700">✏️ 手寫辨識</div><div style="font-size:.68rem;color:var(--t2)">使用 AI 辨識，較慢但更有趣</div></div><div class="TOG'+(p.settings.useHandwriting?' ON':'')+'" onclick="p.settings.useHandwriting=!p.settings.useHandwriting;saveP();rSettings()"></div></div></div><div class="CARD"><div style="font-size:.8rem;font-weight:700;margin-bottom:10px">帳號資訊</div><div class="BDR"><span style="color:var(--t1)">帳號</span><span style="font-weight:700">@'+p.name+'</span></div><div class="BDR"><span style="color:var(--t1)">等級</span><span style="font-weight:700">Lv.'+p.level+'</span></div><div class="BDR"><span style="color:var(--t1)">登入天數</span><span style="font-weight:700">'+(p.loginDays||1)+'天</span></div></div><button class="BTN B-RD BW" style="padding:12px" onclick="logout()">🚪 登出</button><button class="BTN B-WH BW" style="padding:10px;font-size:.82rem" onclick="go(\'home\')">← 返回</button></div>'+bnH('home')
+  var p=S.p,apiKey=getApiKey();
+  app().innerHTML=tbH()+'<div class="PG FADE">'+
+    '<div style="font-size:.92rem;font-weight:700">⚙️ 設定</div>'+
+    '<div class="CARD">'+
+      '<div class="STROW"><div><div style="font-size:.85rem;font-weight:700">顯示名稱</div><div style="font-size:.68rem;color:var(--t2)">目前：'+p.displayName+'</div></div><button class="BTN B-WH" style="padding:6px 12px;font-size:.74rem" onclick="chgName()">修改</button></div>'+
+      '<div class="STROW"><div><div style="font-size:.85rem;font-weight:700">✏️ 手寫辨識</div><div style="font-size:.68rem;color:var(--t2)">'+(apiKey?'已設定 API Key，可開啟':'未設定 API Key，請先設定')+'</div></div><div class="TOG'+(p.settings.useHandwriting&&apiKey?' ON':'')+'" onclick="if(!getApiKey()){toast('請先設定 API Key');return}S.p.settings.useHandwriting=!S.p.settings.useHandwriting;saveP();rSettings()"></div></div>'+
+    '</div>'+
+    '<div class="CARD" style="background:#F0FFF4;border-color:#A5D6A7">'+
+      '<div style="font-size:.8rem;font-weight:700;margin-bottom:8px">🔑 Anthropic API Key（手寫辨識用）</div>'+
+      '<div style="font-size:.68rem;color:var(--t2);margin-bottom:10px">前往 console.anthropic.com 取得 API Key，貼在下方即可使用手寫功能。Key 只儲存在此裝置本機。</div>'+
+      '<input class="INP" id="akey" type="password" placeholder="sk-ant-..." value="'+(apiKey?apiKey.slice(0,8)+'…':'')+'" style="margin-bottom:8px;font-size:.82rem">'+
+      '<button class="BTN B-GR BW" style="padding:10px;font-size:.82rem" onclick="saveApiKey()">💾 儲存 API Key</button>'+
+      (apiKey?'<button class="BTN B-WH BW" style="padding:8px;font-size:.76rem;margin-top:6px" onclick="clearApiKey()">🗑 清除 API Key</button>':'')+
+    '</div>'+
+    '<div class="CARD">'+
+      '<div style="font-size:.8rem;font-weight:700;margin-bottom:10px">帳號資訊</div>'+
+      '<div class="BDR"><span style="color:var(--t1)">帳號</span><span style="font-weight:700">@'+p.name+'</span></div>'+
+      '<div class="BDR"><span style="color:var(--t1)">等級</span><span style="font-weight:700">Lv.'+p.level+'</span></div>'+
+      '<div class="BDR"><span style="color:var(--t1)">登入天數</span><span style="font-weight:700">'+(p.loginDays||1)+'天</span></div>'+
+    '</div>'+
+    '<button class="BTN B-RD BW" style="padding:12px" onclick="logout()">🚪 登出</button>'+
+    '<button class="BTN B-WH BW" style="padding:10px;font-size:.82rem" onclick="go(\'home\')">← 返回</button>'+
+  '</div>'+bnH('home')
+}
+function saveApiKey(){
+  var val=(document.getElementById('akey')?.value||'').trim();
+  if(!val||val.includes('…')){toast('請輸入完整的 API Key');return}
+  try{localStorage.setItem('mt_apikey',val)}catch(e){}
+  toast('✅ API Key 已儲存！可以使用手寫辨識了');rSettings()
+}
+function clearApiKey(){
+  try{localStorage.removeItem('mt_apikey')}catch(e){}
+  S.p.settings.useHandwriting=false;saveP();toast('API Key 已清除');rSettings()
 }
 function chgName(){var n=prompt('輸入新的顯示名稱：',S.p.displayName);if(n&&n.trim()){S.p.displayName=n.trim();saveP();rSettings();toast('名稱已更新！')}}
 function logout(){if(!confirm('確定要登出？'))return;S.p=null;S.edit=false;S.placing=null;S.mode=null;if(S.ftick){clearInterval(S.ftick);S.ftick=null}go('splash')}
