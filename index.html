@@ -513,7 +513,7 @@ function tbH(){
 function bnH(act){
   var tabs=[['home','🏠','首頁'],['town','🏘','小鎮'],['farm','🌾','農場'],['orders','📋','訂單'],['shop','🏪','商店']];
   var o='<div class="BN">';
-  tabs.forEach(function(t){o+='<button class="BNB'+(act===t[0]?' ACT':'')+'" onclick="go(''+t[0]+'')"><span style="font-size:.95rem">'+t[1]+'</span>'+t[2]+'</button>'});
+  tabs.forEach(function(t){o+='<button class="BNB'+(act===t[0]?' ACT':'')+'" onclick="go(this.dataset.tab)"><span style="font-size:.95rem">'+t[1]+'</span>'+t[2]+'</button>'});
   return o+'</div>'
 }
 
@@ -549,7 +549,7 @@ function rLogin(){
   if(S.accounts.length>0){
     savedH='<div><div class="SL">選擇帳號</div><div style="display:flex;flex-direction:column;gap:7px">';
     S.accounts.forEach(function(acc){
-      savedH+='<div style="background:#F7FBF7;border-radius:12px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border:1.5px solid #E0E7EF;cursor:pointer" onclick="document.getElementById('ln').value=''+acc.name+''"><div><div style="font-weight:700;font-size:.88rem">'+acc.displayName+'</div><div style="font-size:.62rem;color:var(--t2)">@'+acc.name+'</div></div><span style="color:#1976D2;font-size:.78rem;font-weight:700">選擇 →</span></div>'
+      savedH+='<div style="background:#F7FBF7;border-radius:12px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border:1.5px solid #E0E7EF;cursor:pointer" data-accname="'+acc.name+'" onclick="document.getElementById('ln').value=this.dataset.accname"><div><div style="font-weight:700;font-size:.88rem">'+acc.displayName+'</div><div style="font-size:.62rem;color:var(--t2)">@'+acc.name+'</div></div><span style="color:#1976D2;font-size:.78rem;font-weight:700">選擇 →</span></div>'
     });
     savedH+='</div></div><div style="text-align:center;color:var(--t2);font-size:.72rem;margin:4px 0">或手動輸入</div>'
   }
@@ -728,14 +728,14 @@ function invPick(el){
 function rShop(){
   var p=S.p;
   var CATS=[['deco','🌳 裝飾'],['bldg','🏛 建築'],['farm','🌾 農場'],['factory','🏭 工廠'],['animal','🐄 動物']];
-  var catH='<div class="SCATS">';CATS.forEach(function(c){catH+='<button class="CATB'+(S.shopCat===c[0]?' ACT':'')+'" onclick="S.shopCat=''+c[0]+'';rShop()">'+c[1]+'</button>'});catH+='</div>';
+  var catH='<div class="SCATS">';CATS.forEach(function(c){catH+='<button class="CATB'+(S.shopCat===c[0]?' ACT':'')+'" data-cat="'+c[0]+'" onclick="S.shopCat=this.dataset.cat;rShop()">'+c[1]+'</button>'});catH+='</div>';
   var items=Object.values(ITEMS).filter(function(it){return it.cat===S.shopCat});
   var gH='<div class="SG">';
   items.forEach(function(b){
     var cnt=p.bldgInv[b.id]||0,placed=p.town.filter(function(t){return t===b.id}).length;
     var unlocked=!b.lv||p.level>=b.lv,canBuy=unlocked&&p.coins>=b.c;
     var prod=b.coin?'+🪙'+b.coin+'/天':b.exp?'+⭐'+b.exp+'/天':b.boost?'×'+(1+b.boost)+'答題':b.crop?CROPS[b.crop]?.e+'作物':b.animal?ANIMALS[b.animal]?.e+'動物':b.cat==='factory'?'加工廠':null;
-    gH+='<div class="SI'+(cnt>0||placed>0?' owned':'')+(!canBuy?' locked':'')+'" onclick="'+(canBuy?'buyB(''+b.id+'')':'')+'">';
+    gH+='<div class="SI'+(cnt>0||placed>0?' owned':'')+(!canBuy?' locked':'')+'" onclick="'+(canBuy?'buyB_data(this)':'')+'">';
     if(cnt>0)gH+='<div class="SICNT">×'+cnt+'</div>';
     gH+='<div style="font-size:1.9rem;margin-bottom:3px">'+b.e+'</div><div style="font-size:.62rem;font-weight:700">'+b.n+'</div>';
     if(prod)gH+='<div class="PTAG">'+prod+'</div>';
@@ -762,6 +762,7 @@ function rShop(){
   }
   app().innerHTML=tbH()+'<div style="display:flex;flex-direction:column;flex:1;overflow:hidden"><div style="padding:10px 14px 0;flex-shrink:0;background:#F0FAFB"><div style="font-size:.76rem;color:var(--t1);margin-bottom:8px">現有 <strong style="color:var(--gold2)">🪙 '+p.coins+'</strong></div>'+catH+'</div><div class="PG" style="padding-top:10px">'+sellH+landH+gH+'</div></div>'+bnH('shop')
 }
+function buyB_data(el){buyB(el.dataset.bid)}
 function buyB(id){var b=Bd(id);if(!b||S.p.coins<b.c)return;S.p.coins-=b.c;S.p.bldgInv[id]=(S.p.bldgInv[id]||0)+1;saveP();toast('已購買 '+b.e+' '+b.n+'！進入小鎮放置');rShop()}
 function buyLand(size,cost){if(S.p.coins<cost)return;S.p.coins-=cost;S.p.landSize=size;while(S.p.town.length<MSZ*MSZ)S.p.town.push(null);saveP();toast('土地擴張到 '+size+'×'+size+'！');rShop()}
 function sellItem(id){var g=GOODS[id];if(!g||(S.p.inv[id]||0)<1)return;S.p.inv[id]--;S.p.coins+=g.sell;S.p.totalCE=(S.p.totalCE||0)+g.sell;if(S.p.inv[id]<=0)delete S.p.inv[id];saveP();toast('出售 '+g.e+' +🪙'+g.sell);rShop()}
@@ -799,7 +800,7 @@ function rFarm(){
     facSlots.forEach(function(s){
       var fac=p.factories[s.idx]||{queue:[]};var job=fac.queue&&fac.queue.length>0?fac.queue[0]:null;
       var gd=job&&GOODS[job.out];var cls=job&&job.done?'RDY':job?'GRW':'EMP';var now=Date.now();
-      h+='<div class="PLOT '+cls+'" onclick="S.factIdx='+s.idx+';S.factId=''+s.b.id+'';go('factory')"><div style="font-size:1.6rem">'+s.b.e+'</div><div style="font-size:.66rem;font-weight:700">'+s.b.n+'</div>'+(job?job.done?'<div style="font-size:.6rem;color:#FF6B35;font-weight:700">'+(gd?gd.e:'')+' 完成！</div>':'<div style="font-size:.58rem;color:var(--t2)">'+fmt(Math.max(0,Math.round((job.endTime-now)/1000)))+'</div>':'<div style="font-size:.6rem;color:var(--gr)">點擊生產</div>')+'</div>'
+      h+='<div class="PLOT '+cls+'" onclick="S.factIdx='+s.idx+';S.factId=s.b.id;go('factory')"><div style="font-size:1.6rem">'+s.b.e+'</div><div style="font-size:.66rem;font-weight:700">'+s.b.n+'</div>'+(job?job.done?'<div style="font-size:.6rem;color:#FF6B35;font-weight:700">'+(gd?gd.e:'')+' 完成！</div>':'<div style="font-size:.58rem;color:var(--t2)">'+fmt(Math.max(0,Math.round((job.endTime-now)/1000)))+'</div>':'<div style="font-size:.6rem;color:var(--gr)">點擊生產</div>')+'</div>'
     });return h+'</div>'
   }
   app().innerHTML=tbH()+'<div class="PG FADE">'+farmHTML()+aniHTML()+facHTML()+'</div>'+bnH('farm')
@@ -851,7 +852,7 @@ function rOrders(){
 function rQuizMode(){
   if(!S.mode){
     var mH='<div style="display:flex;flex-direction:column;gap:8px">';
-    QM.forEach(function(m){mH+='<div class="MI" onclick="pickQM(''+m.id+'')"><div style="width:42px;height:42px;border-radius:12px;background:'+m.c+';display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:900;color:#fff;flex-shrink:0">'+m.sym+'</div><div style="flex:1"><div style="font-size:.88rem;font-weight:700">'+m.n+'</div><div style="font-size:.6rem;color:var(--t2)">'+(m.id==='99'?'九九乘法':m.id==='ck'?'時鐘題目':m.g?'支援整數/小數/分數難度':'')+'</div></div></div>'});
+    QM.forEach(function(m){mH+='<div class="MI" data-mid="'+m.id+'" onclick="pickQM(this.dataset.mid)"><div style="width:42px;height:42px;border-radius:12px;background:'+m.c+';display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:900;color:#fff;flex-shrink:0">'+m.sym+'</div><div style="flex:1"><div style="font-size:.88rem;font-weight:700">'+m.n+'</div><div style="font-size:.6rem;color:var(--t2)">'+(m.id==='99'?'九九乘法':m.id==='ck'?'時鐘題目':m.g?'支援整數/小數/分數難度':'')+'</div></div></div>'});
     mH+='</div>';
     app().innerHTML=tbH()+'<div class="PG FADE"><div style="font-size:.92rem;font-weight:700">選擇練習模式</div>'+mH+'</div>'+bnH('quiz');return
   }
@@ -861,7 +862,7 @@ function rQuizMode(){
     gH='<div><div class="SL">難度（整數/小數/分數）</div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">';
     GRS.forEach(function(g){
       if((m.id==='ck'||m.id==='99')&&g.type!=='int')return;
-      gH+='<div style="background:'+(S.grade===g.id?'#FFF2EC':'#F7FBF7')+';border:1.5px solid '+(S.grade===g.id?'var(--warm)':'#C8E6C9')+';border-radius:10px;padding:8px 4px;text-align:center;cursor:pointer" onclick="S.grade=''+g.id+'';rQuizMode()"><div style="font-size:.76rem;font-weight:900">'+g.n+'</div><div style="font-size:.52rem;opacity:.6;margin-top:2px">×'+g.m+'</div></div>'
+      gH+='<div style="background:'+(S.grade===g.id?'#FFF2EC':'#F7FBF7')+';border:1.5px solid '+(S.grade===g.id?'var(--warm)':'#C8E6C9')+';border-radius:10px;padding:8px 4px;text-align:center;cursor:pointer" data-gid="'+g.id+'" onclick="S.grade=this.dataset.gid;rQuizMode()"><div style="font-size:.76rem;font-weight:900">'+g.n+'</div><div style="font-size:.52rem;opacity:.6;margin-top:2px">×'+g.m+'</div></div>'
     });
     gH+='</div></div>'
   }
