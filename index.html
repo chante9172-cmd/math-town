@@ -653,7 +653,8 @@ function rTown(){
     var any=false;
     Object.keys(p.bldgInv).forEach(function(id){
       if(!p.bldgInv[id])return;var b=Bd(id);if(!b)return;any=true;
-      invBar+='<div class="ICIP'+(S.placing===id?' SEL':'')+'" onclick="S.placing=''+id+'';rTown()"><div style="font-size:1.3rem">'+b.e+'</div><div style="font-size:.5rem;font-weight:700">'+b.n+'</div><div style="font-size:.46rem;color:var(--t2)">×'+p.bldgInv[id]+'</div></div>';
+      var isSel=S.placing===id;
+      invBar+='<div class="ICIP'+(isSel?' SEL':'')+ '" data-invid="'+id+'" onclick="invPick(this)"><div style="font-size:1.3rem">'+b.e+'</div><div style="font-size:.5rem;font-weight:700">'+b.n+'</div><div style="font-size:.46rem;color:var(--t2)">\xd7'+p.bldgInv[id]+'</div></div>';
     });
     if(!any&&!S.placing)invBar+='<div style="font-size:.72rem;color:var(--t2)">庫存空，去商店購買</div>';
     invBar+='</div>';
@@ -719,6 +720,10 @@ function remBldg(idx){
   saveP();document.querySelector('.POPUP')?.remove();rTown()
 }
 
+function invPick(el){
+  var id=el.getAttribute('data-invid');
+  if(id){S.placing=id;rTown()}
+}
 /* ======= SHOP ======= */
 function rShop(){
   var p=S.p;
@@ -751,7 +756,7 @@ function rShop(){
     var goods=Object.keys(p.inv).filter(function(id){return p.inv[id]>0&&GOODS[id]});
     if(goods.length>0){
       sellH='<div class="CARD"><div style="font-size:.74rem;font-weight:700;color:#2E7D32;margin-bottom:10px">💰 出售貨物</div><div class="IGRID">';
-      goods.forEach(function(id){var g=GOODS[id];if(!g)return;sellH+='<div class="II" onclick="sellItem(''+id+'')"><div class="ICNT">'+p.inv[id]+'</div><div style="font-size:1.4rem">'+g.e+'</div><div style="font-size:.52rem;font-weight:700">'+g.n+'</div><div style="font-size:.52rem;color:var(--gold2)">🪙'+g.sell+'</div></div>'});
+      goods.forEach(function(id){var g=GOODS[id];if(!g)return;sellH+='<div class="II" data-sellid="'+id+'" onclick="sellByData(this)"><div class="ICNT">'+p.inv[id]+'</div><div style="font-size:1.4rem">'+g.e+'</div><div style="font-size:.52rem;font-weight:700">'+g.n+'</div><div style="font-size:.52rem;color:var(--gold2)">🪙'+g.sell+'</div></div>'});
       sellH+='</div></div>'
     }
   }
@@ -986,6 +991,7 @@ function renderBub(){var mg=S.mg,bH='';mg.opts.forEach(function(v,i){bH+='<div c
 function tapBub(idx,val){var mg=S.mg;if(mg.proc)return;mg.proc=true;var el=document.getElementById('bb'+idx);if(val===mg.eq.ans){mg.score++;if(el){el.classList.add('OK');el.textContent='✓'}setTimeout(nextBub,500)}else{if(el){el.classList.add('NG');el.textContent='✗'}mg.opts.forEach(function(v,i){if(v===mg.eq.ans){var e2=document.getElementById('bb'+i);if(e2){e2.classList.add('OK');e2.textContent='✓'}}});setTimeout(nextBub,1000)}}
 function endMg2(){var mg=S.mg,lv=S.p.level,base=mg.score*(3+Math.floor(lv/3)),tB=Math.min(lv*2,Math.floor(mg.t/6)),total=base+tB;S.p.coins+=total;S.p.totalCE=(S.p.totalCE||0)+total;if(!S.p.mgDone)S.p.mgDone={};S.p.mgDone.mg2=today();saveP();app().innerHTML='<div style="flex:1;overflow-y:auto"><div style="background:#BF360C;padding:30px 14px 20px;text-align:center"><div style="font-size:2.5rem;margin-bottom:6px">'+(mg.score>=9?'🌟🌟🌟':mg.score>=7?'⭐⭐⭐':mg.score>=5?'⭐⭐':'⭐')+'</div><div style="font-size:.9rem;color:rgba(255,255,255,.9)">'+(mg.score>=9?'超強！':'繼續練習！')+'</div><div style="font-size:2.4rem;font-weight:900;color:var(--gold);margin-top:10px;animation:pop .5s ease">+'+total+'🪙</div></div><div class="PG"><div class="BDR"><span>答對</span><span style="font-weight:900;color:var(--gold2)">'+mg.score+'/'+mg.round+'</span></div><div class="BDR"><span>合計</span><span style="font-weight:900;color:var(--gold2)">🪙 '+total+'</span></div><button class="BTN B-OR BW" onclick="go('mghub')">回小遊戲</button><button class="BTN B-GR BW" onclick="go('home')">回首頁</button></div></div>'}
 
+function sellByData(el){var id=el.getAttribute('data-sellid');if(id)sellItem(id)}
 /* ======= STATS ======= */
 function rStats(){
   var p=S.p,acc=p.totalA?Math.round(p.totalC/p.totalA*100):0;
