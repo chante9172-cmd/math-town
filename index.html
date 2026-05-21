@@ -7,11 +7,11 @@
 <meta name="theme-color" content="#4CAF50">
 <title>數學小鎮 v4</title>
 <link rel="manifest" href="manifest.json">
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden;font-family:system-ui,sans-serif;background:#1B4332;color:#1B2631}
 #app{max-width:480px;margin:0 auto;height:100%;display:flex;flex-direction:column;overflow:hidden}
-:root{--gr:#4CAF50;--warm:#FF6B35;--gold:#FFD700;--gold2:#F59E0B;--rd:#EF4444;--t2:#9EA8B1}
 .TB{background:linear-gradient(135deg,#2E7D32,#1565C0);padding:8px 12px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
 .AV{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.25);border:2px solid rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
 .LVB{background:#FFD700;color:#000;font-size:.5rem;font-weight:900;padding:1px 5px;border-radius:5px;margin-left:4px}
@@ -31,14 +31,6 @@ html,body{height:100%;overflow:hidden;font-family:system-ui,sans-serif;backgroun
 .PG{padding:14px;display:flex;flex-direction:column;gap:12px;overflow-y:auto;flex:1}
 .SL{font-size:.58rem;font-weight:700;color:#9EA8B1;text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
 .BDR{background:#F7FBF7;border-radius:10px;padding:9px 12px;display:flex;align-items:center;justify-content:space-between;font-size:.8rem}
-.EB{position:absolute;left:10px;top:10px;z-index:10;padding:6px 12px;background:rgba(255,255,255,.92);border:none;border-radius:50px;font-size:.75rem;font-weight:700;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.25)}
-.EB.ON{background:#FF6B35;color:#fff}
-.MB{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px;z-index:10}
-.MBT{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.92);cursor:pointer;font-size:1rem;font-weight:900;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.2)}
-.IB{position:absolute;bottom:0;left:0;right:0;background:rgba(255,255,255,.97);border-top:2px solid #E8F5E9;padding:7px 10px;z-index:20;display:flex;gap:7px;align-items:center;overflow-x:auto;scrollbar-width:none}
-.IB::-webkit-scrollbar{display:none}
-.ICIP{border:1.5px solid #E0E7EF;border-radius:10px;padding:5px 7px;text-align:center;cursor:pointer;flex-shrink:0;min-width:52px;background:#F7FBF7}
-.ICIP.SEL{border-color:#4CAF50;background:rgba(76,175,80,.1)}
 .SCATS{display:flex;gap:6px;overflow-x:auto;padding:0 2px;flex-shrink:0;scrollbar-width:none}
 .SCATS::-webkit-scrollbar{display:none}
 .CATB{padding:6px 12px;border-radius:50px;border:1.5px solid #E0E7EF;background:#fff;font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap;color:#4A5568}
@@ -101,12 +93,16 @@ input[type=number]::-webkit-inner-spin-button{display:none}
 @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}.FADE{animation:fade .22s ease}
 @keyframes pop{from{transform:scale(.3);opacity:0}to{transform:scale(1);opacity:1}}
 .QEXPR{font-size:2rem;font-weight:900;text-align:center;color:#1B2631}
+.IB{position:absolute;bottom:0;left:0;right:0;background:rgba(255,255,255,.97);border-top:2px solid #E8F5E9;padding:7px 10px;z-index:20;display:flex;gap:7px;align-items:center;overflow-x:auto;scrollbar-width:none}
+.IB::-webkit-scrollbar{display:none}
+.ICIP{border:1.5px solid #E0E7EF;border-radius:10px;padding:5px 7px;text-align:center;cursor:pointer;flex-shrink:0;min-width:52px;background:#F7FBF7}
+.ICIP.SEL{border-color:#4CAF50;background:rgba(76,175,80,.1)}
 </style>
-<script src="https://unpkg.com/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 <body>
 <div id="app"></div>
 <script>
+
 var IT={
 R:{id:'R',n:'岩石',e:'🪨',bg:'#52B788',bd:'#2D6A4F',c:8,cat:'deco'},
 G:{id:'G',n:'草坪',e:'🌿',bg:'#57CC7E',bd:'#2D7A4F',c:12,cat:'deco'},
@@ -225,95 +221,570 @@ var GRS=[
 var MG_P=[['3×4','12'],['8+7','15'],['20÷4','5'],['6×6','36'],['15−8','7'],['9×3','27'],['48÷6','8'],['14+9','23'],['7×8','56']];
 var S={sc:'splash',accounts:[],p:null,mode:null,grade:'d1',tl:20,qs:[],qi:0,qAns:[],streak:0,maxStreak:0,earned:0,t:0,tid:null,QS:0,cvCtx:null,drawing:false,tool:'pen',strokes:[],zoom:1,mx:0,my:0,edit:false,placing:null,scat:'deco',fixIdx:null,fixId:null,mg:{},ftick:null};
 var MSZ=50;
+// ============================================================
+// MNIST DIGIT RECOGNITION via TensorFlow.js
+// ============================================================
+var TF_MODEL = null;
+var TF_READY = false;
+var TF_LOADING = false;
+
+async function initOCR() {
+  if (TF_READY || TF_LOADING) return;
+  TF_LOADING = true;
+  function setSt(t, c) {
+    ['OCR','ocr-status'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) { el.textContent = t; if (c) el.style.color = c; }
+    });
+  }
+  setSt('📥 載入 AI 辨識模型…', '#FF9800');
+  try {
+    if (typeof tf === 'undefined') throw new Error('TF.js not loaded');
+    var modelP = tf.loadLayersModel(
+      'https://storage.googleapis.com/tfjs-models/tfjs/mnist_transfer_cnn_v1/model.json'
+    );
+    var timeP = new Promise(function(_,rej){ setTimeout(function(){rej(new Error('timeout'))},12000); });
+    TF_MODEL = await Promise.race([modelP, timeP]);
+    // Warmup prediction
+    tf.tidy(function(){ TF_MODEL.predict(tf.zeros([1,28,28,1])); });
+    TF_READY = true; TF_LOADING = false;
+    setSt('✅ AI 模型已就緒', '#4CAF50');
+  } catch(e) {
+    TF_LOADING = false; TF_READY = 'fallback';
+    setSt('✏️ 本機辨識模式', '#4CAF50');
+    console.log('TF not available:', e.message);
+  }
+}
+
+// Render strokes onto a 28x28 canvas for MNIST input
+function renderTo28x28(strokes) {
+  // Step 1: render at high resolution (280x280) for quality
+  var big = document.createElement('canvas');
+  big.width = 280; big.height = 280;
+  var bctx = big.getContext('2d');
+  bctx.fillStyle = '#000'; bctx.fillRect(0,0,280,280);
+  if(!strokes||!strokes.length) {
+    // Return 28x28 blank
+    var t=document.createElement('canvas');t.width=28;t.height=28;
+    return t;
+  }
+  var all=[]; strokes.forEach(function(s){all=all.concat(s.pts)});
+  var minX=all[0].x,maxX=all[0].x,minY=all[0].y,maxY=all[0].y;
+  all.forEach(function(p){minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y)});
+  var W=maxX-minX||1,H=maxY-minY||1;
+  // Center with 20% padding
+  var sc=Math.min(280*0.6/W, 280*0.6/H);
+  var ox=(280-W*sc)/2-minX*sc;
+  var oy=(280-H*sc)/2-minY*sc;
+  bctx.strokeStyle='#fff';
+  bctx.lineWidth=Math.max(12, 20*sc);  // thick strokes for 280px canvas
+  bctx.lineCap='round'; bctx.lineJoin='round';
+  strokes.forEach(function(st){
+    if(!st.pts||st.pts.length<2)return;
+    bctx.beginPath(); bctx.moveTo(st.pts[0].x*sc+ox, st.pts[0].y*sc+oy);
+    for(var i=1;i<st.pts.length;i++) bctx.lineTo(st.pts[i].x*sc+ox, st.pts[i].y*sc+oy);
+    bctx.stroke();
+  });
+  // Step 2: downscale to 28x28
+  var small=document.createElement('canvas');small.width=28;small.height=28;
+  var sctx=small.getContext('2d');
+  sctx.drawImage(big,0,0,280,280,0,0,28,28);
+  return small;
+}
+
+async function recognizeWithTF(strokes) {
+  if (TF_READY !== true || !TF_MODEL) return null;
+  try {
+    var canvas28 = renderTo28x28(strokes);
+    var data = await new Promise(function(resolve) {
+      var tensor = tf.tidy(function() {
+        var img = tf.browser.fromPixels(canvas28, 1); // shape [28,28,1]
+        return img.toFloat().div(255.0).expandDims(0); // shape [1,28,28,1]
+      });
+      var pred = TF_MODEL.predict(tensor);
+      var idx = pred.argMax(-1).dataSync()[0];
+      tensor.dispose(); pred.dispose();
+      resolve(idx);
+    });
+    return data;
+  } catch(e) {
+    console.error('TF predict:', e);
+    return null;
+  }
+}
+
+// ============================================================
+// STROKE RECOGNIZER v6 - Scoring system
+// ============================================================
+
+function rasterStrokes(strokes,N){var g=[];for(var r=0;r<N;r++){g.push([]);for(var c=0;c<N;c++)g[r].push(0);}if(!strokes||!strokes.length)return g;var all=[];strokes.forEach(function(s){all=all.concat(s.pts)});if(all.length<2)return g;var minX=all[0].x,maxX=all[0].x,minY=all[0].y,maxY=all[0].y;all.forEach(function(p){minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y)});var W=maxX-minX||1,H=maxY-minY||1;strokes.forEach(function(st){for(var i=1;i<st.pts.length;i++){var p0=st.pts[i-1],p1=st.pts[i];var steps=Math.max(4,Math.ceil(Math.hypot(p1.x-p0.x,p1.y-p0.y)/2));for(var s2=0;s2<=steps;s2++){var t=s2/steps,x=p0.x+(p1.x-p0.x)*t,y=p0.y+(p1.y-p0.y)*t;var col=Math.min(N-1,Math.max(0,Math.round((x-minX)/W*(N-1))));var row=Math.min(N-1,Math.max(0,Math.round((y-minY)/H*(N-1))));g[row][col]=1;if(col>0)g[row][col-1]=1;if(col<N-1)g[row][col+1]=1;if(row>0)g[row-1][col]=1;if(row<N-1)g[row+1][col]=1;}}});return g;}
+function gd(g,N,r1,r2,c1,c2){var s=0,t=(r2-r1)*(c2-c1)||1;for(var r=Math.max(0,r1);r<Math.min(N,r2);r++)for(var c=Math.max(0,c1);c<Math.min(N,c2);c++)s+=g[r][c];return s/t;}
+function calcWinding(pts){if(pts.length<10)return 0;var sm=[],win=3;for(var i=win;i<pts.length-win;i++){var sx=0,sy=0;for(var j=-win;j<=win;j++){sx+=pts[i+j].x;sy+=pts[i+j].y}sm.push({x:sx/(2*win+1),y:sy/(2*win+1)});}var total=0;for(var i=1;i<sm.length-1;i++){var ax=sm[i].x-sm[i-1].x,ay=sm[i].y-sm[i-1].y;var bx=sm[i+1].x-sm[i].x,by=sm[i+1].y-sm[i].y;if(Math.hypot(ax,ay)<0.3||Math.hypot(bx,by)<0.3)continue;total+=Math.atan2(ax*by-ay*bx,ax*bx+ay*by);}return Math.abs(total)/(2*Math.PI);}
+function totalWinding(strokes){var w=0;strokes.forEach(function(s){w+=calcWinding(s.pts)});return w;}
+function classifyDigitFallback(strokes){
+  if(!strokes||!strokes.length)return null;
+  var all=[];strokes.forEach(function(s){all=all.concat(s.pts)});
+  if(all.length<4)return null;
+  var minX=all[0].x,maxX=all[0].x,minY=all[0].y,maxY=all[0].y;
+  all.forEach(function(p){minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y)});
+  var W=maxX-minX+1,H=maxY-minY+1,asp=W/H,nSt=strokes.length;
+  var wind=totalWinding(strokes);
+  var N=20,g=rasterStrokes(strokes,N);
+  var TL=gd(g,N,0,10,0,10),TR=gd(g,N,0,10,10,20),BL=gd(g,N,10,20,0,10),BR=gd(g,N,10,20,10,20);
+  var topS=gd(g,N,0,3,0,20),midS=gd(g,N,8,12,0,20),botS=gd(g,N,17,20,0,20);
+  var leftC=gd(g,N,0,20,0,4),rightC=gd(g,N,0,20,16,20);
+  var topL=gd(g,N,0,7,0,8),topR=gd(g,N,0,7,12,20);
+  var botL=gd(g,N,13,20,0,8),botR=gd(g,N,13,20,12,20);
+  var midL=gd(g,N,7,13,0,7),midR=gd(g,N,7,13,13,20);
+  var sc={0:0,1:0,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0};
+  sc[1]+=asp<0.30?5:asp<0.42?3:asp<0.55?1:0;sc[1]+=nSt===1&&leftC<0.06&&rightC<0.06?2:0;
+  sc[0]+=wind>0.5?3:0;sc[0]+=Math.abs(TL+TR-BL-BR)<0.18?2:0;sc[0]+=gd(g,N,5,15,5,15)<0.25?2:0;sc[0]+=asp>0.35&&asp<1.8?1:0;
+  sc[6]+=wind>0.45?2:0;sc[6]+=BL+BR>TL+TR+0.1?3:0;sc[6]+=botL>topL+0.05?1:0;sc[6]+=leftC>0.15?1:0;
+  sc[9]+=wind>0.45?2:0;sc[9]+=TL+TR>BL+BR+0.1?3:0;sc[9]+=topR>botR+0.05?1:0;sc[9]+=BR>0.08?1:0;
+  sc[8]+=wind>1.1?5:wind>0.8?3:wind>0.6?1:0;sc[8]+=TL>0.12&&TR>0.12&&BL>0.12&&BR>0.12?2:0;
+  if(nSt>=2){var lc=0;strokes.forEach(function(s){if(calcWinding(s.pts)>0.5)lc++});sc[8]+=lc>=2?4:0;}
+  sc[7]+=topS>0.38?4:topS>0.25?2:0;sc[7]+=BL>0.05&&BR<BL?1:0;sc[7]+=(TL+TR)>0.2&&(BL+BR)<0.18?1:0;sc[7]+=wind<0.4?1:0;
+  sc[3]+=rightC>0.35?3:rightC>0.2?1:0;sc[3]+=leftC<0.08?3:leftC<0.15?1:0;sc[3]+=topR>0.18&&botR>0.18?2:0;sc[3]+=midL<0.08?1:0;sc[3]+=wind<0.4?1:0;
+  sc[4]+=midS>0.12?1:0;sc[4]+=rightC>0.18?2:0;sc[4]+=TL>0.1&&TR>0.06?1:0;sc[4]+=nSt>=2?2:0;sc[4]+=asp>0.5?1:0;
+  sc[2]+=topR>0.18&&botL>0.08?3:0;sc[2]+=botS>0.12?1:0;sc[2]+=TL<TR-0.03?1:0;sc[2]+=wind<0.4?1:0;sc[2]+=asp>0.45?1:0;
+  sc[5]+=topL>topR+0.04?2:0;sc[5]+=botR>botL+0.04?2:0;sc[5]+=topS>0.12&&midR>0.12?1:0;sc[5]+=asp>0.4?1:0;
+  if(wind<0.35){sc[0]-=3;sc[6]-=3;sc[8]-=3;sc[9]-=3;}
+  if(wind>0.55){sc[1]-=3;sc[2]-=2;sc[3]-=2;sc[7]-=3;}
+  var best=0,bestS=sc[0];for(var d=1;d<=9;d++){if(sc[d]>bestS){bestS=sc[d];best=d;}}
+  return best;
+}
+function splitIntoDigitsFallback(strokes,gMinX,gMaxX){if(!strokes.length)return[];var info=strokes.map(function(st){var pts=st.pts,mnX=pts[0].x,mxX=pts[0].x;pts.forEach(function(p){mnX=Math.min(mnX,p.x);mxX=Math.max(mxX,p.x)});return{st:st,minX:mnX,maxX:mxX,cx:(mnX+mxX)/2}}).sort(function(a,b){return a.cx-b.cx});var gapT=Math.max(14,(gMaxX-gMinX)*0.20);var groups=[{strokes:[info[0].st],minX:info[0].minX,maxX:info[0].maxX}];for(var i=1;i<info.length;i++){var last=groups[groups.length-1],cur=info[i];if(cur.minX-last.maxX<gapT){last.strokes.push(cur.st);last.maxX=Math.max(last.maxX,cur.maxX);}else groups.push({strokes:[cur.st],minX:cur.minX,maxX:cur.maxX});}return groups;}
+function recognizeStrokesFallback(strokes,isClock){if(!strokes||!strokes.length)return null;var all=[];strokes.forEach(function(s){all=all.concat(s.pts)});if(all.length<4)return null;var minX=all[0].x,maxX=all[0].x;all.forEach(function(p){minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x)});var groups=splitIntoDigitsFallback(strokes,minX,maxX);if(!groups.length)return null;var result='';for(var i=0;i<Math.min(groups.length,3);i++){var d=classifyDigitFallback(groups[i].strokes);if(d===null)return null;result+=String(d);}return result||null;}
+
+// ============================================================
+// MNIST DIGIT RECOGNITION via TensorFlow.js
+// ============================================================
+var TF_MODEL = null;
+var TF_READY = false;
+var TF_LOADING = false;
+
+async function initOCR() {
+  if (TF_READY || TF_LOADING) return;
+  TF_LOADING = true;
+  function setSt(t, c) {
+    ['OCR','ocr-status'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) { el.textContent = t; if (c) el.style.color = c; }
+    });
+  }
+  setSt('📥 載入 AI 辨識模型…', '#FF9800');
+  try {
+    if (typeof tf === 'undefined') throw new Error('TF.js not loaded');
+    var modelP = tf.loadLayersModel(
+      'https://storage.googleapis.com/tfjs-models/tfjs/mnist_transfer_cnn_v1/model.json'
+    );
+    var timeP = new Promise(function(_,rej){ setTimeout(function(){rej(new Error('timeout'))},12000); });
+    TF_MODEL = await Promise.race([modelP, timeP]);
+    // Warmup prediction
+    tf.tidy(function(){ TF_MODEL.predict(tf.zeros([1,28,28,1])); });
+    TF_READY = true; TF_LOADING = false;
+    setSt('✅ AI 模型已就緒', '#4CAF50');
+  } catch(e) {
+    TF_LOADING = false; TF_READY = 'fallback';
+    setSt('✏️ 本機辨識模式', '#4CAF50');
+    console.log('TF not available:', e.message);
+  }
+}
+
+// Render strokes onto a 28x28 canvas for MNIST input
+function renderTo28x28(strokes) {
+  // Step 1: render at high resolution (280x280) for quality
+  var big = document.createElement('canvas');
+  big.width = 280; big.height = 280;
+  var bctx = big.getContext('2d');
+  bctx.fillStyle = '#000'; bctx.fillRect(0,0,280,280);
+  if(!strokes||!strokes.length) {
+    // Return 28x28 blank
+    var t=document.createElement('canvas');t.width=28;t.height=28;
+    return t;
+  }
+  var all=[]; strokes.forEach(function(s){all=all.concat(s.pts)});
+  var minX=all[0].x,maxX=all[0].x,minY=all[0].y,maxY=all[0].y;
+  all.forEach(function(p){minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y)});
+  var W=maxX-minX||1,H=maxY-minY||1;
+  // Center with 20% padding
+  var sc=Math.min(280*0.6/W, 280*0.6/H);
+  var ox=(280-W*sc)/2-minX*sc;
+  var oy=(280-H*sc)/2-minY*sc;
+  bctx.strokeStyle='#fff';
+  bctx.lineWidth=Math.max(12, 20*sc);  // thick strokes for 280px canvas
+  bctx.lineCap='round'; bctx.lineJoin='round';
+  strokes.forEach(function(st){
+    if(!st.pts||st.pts.length<2)return;
+    bctx.beginPath(); bctx.moveTo(st.pts[0].x*sc+ox, st.pts[0].y*sc+oy);
+    for(var i=1;i<st.pts.length;i++) bctx.lineTo(st.pts[i].x*sc+ox, st.pts[i].y*sc+oy);
+    bctx.stroke();
+  });
+  // Step 2: downscale to 28x28
+  var small=document.createElement('canvas');small.width=28;small.height=28;
+  var sctx=small.getContext('2d');
+  sctx.drawImage(big,0,0,280,280,0,0,28,28);
+  return small;
+}
+
+async function recognizeWithTF(strokes) {
+  if (TF_READY !== true || !TF_MODEL) return null;
+  try {
+    var canvas28 = renderTo28x28(strokes);
+    var data = await new Promise(function(resolve) {
+      var tensor = tf.tidy(function() {
+        var img = tf.browser.fromPixels(canvas28, 1); // shape [28,28,1]
+        return img.toFloat().div(255.0).expandDims(0); // shape [1,28,28,1]
+      });
+      var pred = TF_MODEL.predict(tensor);
+      var idx = pred.argMax(-1).dataSync()[0];
+      tensor.dispose(); pred.dispose();
+      resolve(idx);
+    });
+    return data;
+  } catch(e) {
+    console.error('TF predict:', e);
+    return null;
+  }
+}
+
+// ============================================================
+// STROKE RECOGNIZER v5
+// ============================================================
+// ============================================================
+// STROKE RECOGNIZER v5 - Per-digit optimized rules
+// ============================================================
+
+function rasterStrokes(strokes, N) {
+  var g=[];for(var r=0;r<N;r++){g.push([]);for(var c=0;c<N;c++)g[r].push(0);}
+  if(!strokes||!strokes.length)return g;
+  var all=[];strokes.forEach(function(s){all=all.concat(s.pts)});
+  if(all.length<2)return g;
+  var minX=all[0].x,maxX=all[0].x,minY=all[0].y,maxY=all[0].y;
+  all.forEach(function(p){minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y)});
+  var W=maxX-minX||1,H=maxY-minY||1;
+  strokes.forEach(function(st){
+    for(var i=1;i<st.pts.length;i++){
+      var p0=st.pts[i-1],p1=st.pts[i];
+      var steps=Math.max(4,Math.ceil(Math.hypot(p1.x-p0.x,p1.y-p0.y)/2));
+      for(var s=0;s<=steps;s++){
+        var t=s/steps,x=p0.x+(p1.x-p0.x)*t,y=p0.y+(p1.y-p0.y)*t;
+        var col=Math.min(N-1,Math.max(0,Math.floor((x-minX)/W*(N-1))));
+        var row=Math.min(N-1,Math.max(0,Math.floor((y-minY)/H*(N-1))));
+        g[row][col]=1;
+        if(col>0)g[row][col-1]=1;if(col<N-1)g[row][col+1]=1;
+        if(row>0)g[row-1][col]=1;if(row<N-1)g[row+1][col]=1;
+      }
+    }
+  });
+  return g;
+}
+
+function gd(g,N,r1,r2,c1,c2){
+  var s=0,t=(r2-r1)*(c2-c1)||1;
+  for(var r=r1;r<r2;r++)for(var c=c1;c<c2;c++)s+=g[r][c];
+  return s/t;
+}
+
+function windingNumber(pts) {
+  if(pts.length<10)return 0;
+  var sm=[],win=3;
+  for(var i=win;i<pts.length-win;i++){
+    var sx=0,sy=0;
+    for(var j=-win;j<=win;j++){sx+=pts[i+j].x;sy+=pts[i+j].y}
+    sm.push({x:sx/(2*win+1),y:sy/(2*win+1)});
+  }
+  if(sm.length<4)return 0;
+  var total=0;
+  for(var i=1;i<sm.length-1;i++){
+    var ax=sm[i].x-sm[i-1].x,ay=sm[i].y-sm[i-1].y;
+    var bx=sm[i+1].x-sm[i].x,by=sm[i+1].y-sm[i].y;
+    if(Math.hypot(ax,ay)<0.5||Math.hypot(bx,by)<0.5)continue;
+    total+=Math.atan2(ax*by-ay*bx,ax*bx+ay*by);
+  }
+  return Math.abs(total)/(2*Math.PI);
+}
+
+function strokeWinding(strokes){
+  var w=0;strokes.forEach(function(s){w+=windingNumber(s.pts)});return w;
+}
+
+// Get the starting direction of a stroke
+function strokeStartDir(st) {
+  var pts=st.pts;if(pts.length<4)return{dx:0,dy:0};
+  var n=Math.min(8,Math.floor(pts.length/4));
+  return{dx:pts[n].x-pts[0].x, dy:pts[n].y-pts[0].y};
+}
+
+// Get ending direction
+function strokeEndDir(st) {
+  var pts=st.pts,n=pts.length;if(n<4)return{dx:0,dy:0};
+  var k=Math.min(8,Math.floor(n/4));
+  return{dx:pts[n-1].x-pts[n-1-k].x, dy:pts[n-1].y-pts[n-1-k].y};
+}
+
+// Does stroke go mostly left-to-right?
+function strokeLtoR(st){var d=strokeStartDir(st);return d.dx>Math.abs(d.dy)*0.3}
+function strokeRtoL(st){var d=strokeStartDir(st);return d.dx<-Math.abs(d.dy)*0.3}
+
+function classifyDigitFallback(strokes) {
+  if(!strokes||!strokes.length)return null;
+  var all=[];strokes.forEach(function(s){all=all.concat(s.pts)});
+  if(all.length<4)return null;
+
+  var minX=all[0].x,maxX=all[0].x,minY=all[0].y,maxY=all[0].y;
+  all.forEach(function(p){minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minY=Math.min(minY,p.y);maxY=Math.max(maxY,p.y)});
+  var W=maxX-minX+1,H=maxY-minY+1,asp=W/H;
+  var nSt=strokes.length;
+  var wind=strokeWinding(strokes);
+
+  var N=16,g=rasterStrokes(strokes,N);
+  // 4 quadrants
+  var tl=gd(g,N,0,8,0,8),tr=gd(g,N,0,8,8,16);
+  var bl=gd(g,N,8,16,0,8),br=gd(g,N,8,16,8,16);
+  // Thirds
+  var topT=gd(g,N,0,5,0,16),   midT=gd(g,N,5,11,0,16),   botT=gd(g,N,11,16,0,16);
+  var leftT=gd(g,N,0,16,0,5),  midLR=gd(g,N,0,16,5,11),  rightT=gd(g,N,0,16,11,16);
+  // More granular
+  var topRow=gd(g,N,0,2,0,16); // very top edge
+  var botRow=gd(g,N,14,16,0,16); // very bottom edge
+  var midRow=gd(g,N,7,9,0,16);   // very middle row
+  var topR=gd(g,N,0,5,10,16),topL=gd(g,N,0,5,0,6);
+  var botR=gd(g,N,11,16,10,16),botL=gd(g,N,11,16,0,6);
+  var midLeft=gd(g,N,6,10,0,5),midRight=gd(g,N,6,10,11,16);
+  // Center region
+  var center=gd(g,N,5,11,5,11);
+
+  // ─────────────────────────────────────────
+  // DIGIT RULES
+  // ─────────────────────────────────────────
+
+  // ── 1: Very narrow ──
+  if(asp<0.35)return 1;
+  if(asp<0.48&&nSt===1&&wind<0.4)return 1;
+
+  // ── 8: Two strong loops OR single figure-eight stroke ──
+  // 8 drawn as two separate circles = wind sum from both strokes
+  // 8 drawn as single connected = very high winding
+  if(wind>1.25)return 8;
+  // Two strokes each with a loop
+  if(nSt>=2){
+    var loopCount=0;
+    strokes.forEach(function(s){if(windingNumber(s.pts)>0.55)loopCount++});
+    if(loopCount>=2)return 8;
+  }
+  // Single stroke 8: has both top and bottom loops → symmetric density
+  if(wind>0.85&&tl>0.15&&tr>0.15&&bl>0.15&&br>0.15)return 8;
+
+  // ── 0, 6, 9: Single loop ──
+  if(wind>0.55){
+    var topHalf=tl+tr, botHalf=bl+br;
+    var diff=(topHalf-botHalf)/((topHalf+botHalf)||0.01);
+    // 0: balanced both halves
+    if(Math.abs(diff)<0.18)return 0;
+    // 9: loop in top, tail goes down from bottom-right
+    if(diff>0.18)return 9;
+    // 6: loop in bottom, opening at top
+    return 6;
+  }
+
+  // ── 4: Two strokes OR one stroke making the 4-shape ──
+  // 4 has: upper-left line going diagonally + vertical right + crossbar
+  // Key feature: LEFT side has top-to-middle content, and there's a vertical right bar
+  // AND a horizontal crossbar in the middle
+  if(nSt>=2){
+    // Check for 4: one stroke is a diagonal or vertical-left, other is vertical-right
+    var hasVertRight=strokes.some(function(s){
+      var pts=s.pts;var n=pts.length;if(n<5)return false;
+      var dx=Math.abs(pts[n-1].x-pts[0].x),dy=Math.abs(pts[n-1].y-pts[0].y);
+      return dy>dx*1.5;
+    });
+    if(hasVertRight&&tl>0.1&&rightT>0.2&&midT>0.15)return 4;
+  }
+  // Single-stroke 4: diagonal + bend + vertical
+  if(tl>0.15&&tr>0.1&&rightT>0.25&&midRow>0.1&&wind<0.4)return 4;
+
+  // ── 7: Top horizontal bar, diagonal going down-left ──
+  // 7: strong top row, bottom goes to LEFT side
+  if(topRow>0.35&&botL>0.05&&tl>0.05&&wind<0.35)return 7;
+  if(topRow>0.45&&bl<0.15)return 7;
+
+  // ── 3: Two bumps on right, open left ──
+  // 3: right side has content top AND bottom, left side empty
+  if(rightT>0.35&&leftT<0.12&&topR>0.15&&botR>0.15&&midLeft<0.1)return 3;
+  if(tr>0.25&&br>0.25&&bl<0.1&&tl<0.1&&wind<0.4)return 3;
+
+  // ── 5: Top-left bar + middle-right turn + bottom-right curve ──
+  // 5 starts with a LEFT-going stroke (or has top-left density)
+  // Then has bottom-right curve
+  // Key: topL > topR AND botR > botL
+  if(topL>topR+0.02&&botR>botL&&midRow>0.05&&asp>0.45)return 5;
+  // Also: first stroke goes right-to-left (the top bar)
+  if(nSt>=2){
+    var firstGoesLeft=strokes[0].pts.length>3&&strokeRtoL(strokes[0]);
+    if(firstGoesLeft&&botR>0.1)return 5;
+  }
+
+  // ── 2: Top-right start, sweeps to bottom-left ──
+  // 2: starts upper-right, ends lower-left, has bottom horizontal
+  if(tr>0.2&&botRow>0.15&&tl<tr-0.02&&wind<0.4)return 2;
+  if(topR>0.2&&botL>0.1&&wind<0.35)return 2;
+
+  // ── Remaining fallbacks ──
+  if(asp<0.55)return 1;
+  if(rightT>leftT*1.8&&topR>0.1&&botR>0.1)return 3;
+  if(topR>0.2&&botL>0.08)return 2;
+  if(topL>0.15&&botR>0.15)return 5;
+  return 2;
+}
+
+function splitIntoDigitsFallback(strokes, gMinX, gMaxX) {
+  if(!strokes.length)return[];
+  var info=strokes.map(function(st){
+    var pts=st.pts,mnX=pts[0].x,mxX=pts[0].x;
+    pts.forEach(function(p){mnX=Math.min(mnX,p.x);mxX=Math.max(mxX,p.x)});
+    return{st:st,minX:mnX,maxX:mxX,cx:(mnX+mxX)/2};
+  }).sort(function(a,b){return a.cx-b.cx});
+  var totalW=gMaxX-gMinX,gapT=Math.max(18,totalW*0.22);
+  var groups=[{strokes:[info[0].st],minX:info[0].minX,maxX:info[0].maxX}];
+  for(var i=1;i<info.length;i++){
+    var last=groups[groups.length-1],cur=info[i];
+    if(cur.minX-last.maxX<gapT||cur.minX<last.maxX+3){
+      last.strokes.push(cur.st);last.maxX=Math.max(last.maxX,cur.maxX);
+    }else groups.push({strokes:[cur.st],minX:cur.minX,maxX:cur.maxX});
+  }
+  return groups;
+}
+
+function recognizeStrokesFallback(strokes, isClock) {
+  if(!strokes||!strokes.length)return null;
+  var all=[];strokes.forEach(function(s){all=all.concat(s.pts)});
+  if(all.length<4)return null;
+  var minX=all[0].x,maxX=all[0].x;
+  all.forEach(function(p){minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x)});
+  var groups=splitIntoDigitsFallback(strokes,minX,maxX);
+  if(!groups.length)return null;
+  var result='';
+  for(var i=0;i<Math.min(groups.length,3);i++){
+    var d=classifyDigitFallback(groups[i].strokes);
+    if(d===null)return null;
+    result+=String(d);
+  }
+  return result||null;
+}
+
+
+
 var OCR_WORKER=null;
 var OCR_READY=false;
 var OCR_LOADING=false;
 
-async function initOCR(){
-  if(OCR_READY||OCR_LOADING)return;
-  OCR_LOADING=true;
-  var st=document.getElementById('OCR');
-  if(st){st.textContent='📥 載入手寫辨識中…';st.style.display='block'}
-  try{
-    // Tesseract.js v5 correct API
-    OCR_WORKER=await Tesseract.createWorker('eng');
-    await OCR_WORKER.setParameters({
-      tessedit_char_whitelist:'0123456789/:',
-      tessedit_pageseg_mode:Tesseract.PSM.SINGLE_LINE||7,
-    });
-    OCR_READY=true;OCR_LOADING=false;
-    if(st)st.textContent='✅ 辨識模型已載入！';
-    setTimeout(function(){if(st)st.textContent=''},2000);
-  }catch(e){
-    console.error('OCR init failed:',e);
-    OCR_LOADING=false;
-    if(st)st.textContent='⚠️ 辨識模型載入失敗，請用鍵盤輸入';
-  }
-}
+// (Tesseract initOCR removed - using TF.js)
+
 
 // Preprocess canvas: white bg, thicken strokes, scale up for OCR
 function preprocessCanvas(cv){
-  var scale=3;
-  var tmp=document.createElement('canvas');
-  tmp.width=cv.width*scale;tmp.height=cv.height*scale;
-  var ctx=tmp.getContext('2d');
-  // White background
-  ctx.fillStyle='#ffffff';ctx.fillRect(0,0,tmp.width,tmp.height);
-  // Scale up and draw
-  ctx.scale(scale,scale);ctx.drawImage(cv,0,0);ctx.setTransform(1,0,0,1,0,0);
-  // Invert check: if bg is dark, invert
-  var imgd=ctx.getImageData(0,0,tmp.width,tmp.height);var d=imgd.data;
-  // Binarize: make strokes black, everything else white
-  for(var i=0;i<d.length;i+=4){
-    var bright=(d[i]+d[i+1]+d[i+2])/3;
-    var alpha=d[i+3];
-    if(alpha<30||bright>180){d[i]=d[i+1]=d[i+2]=255;d[i+3]=255}
-    else{d[i]=d[i+1]=d[i+2]=0;d[i+3]=255}
+  // Re-draw strokes cleanly on a large white canvas using S.strokes data
+  var W=600,H=240;
+  var out=document.createElement('canvas');out.width=W;out.height=H;
+  var ctx=out.getContext('2d');
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+
+  if(!S.strokes||S.strokes.length===0){
+    // Fallback: read pixels from source canvas
+    var src=cv.getContext('2d');
+    var sd=src.getImageData(0,0,cv.width,cv.height).data;
+    var minX=cv.width,maxX=0,minY=cv.height,maxY=0;
+    for(var i=0;i<sd.length;i+=4){
+      if(sd[i+3]>10){var px=(i/4)%cv.width,py=Math.floor(i/4/cv.width);
+        minX=Math.min(minX,px);maxX=Math.max(maxX,px);
+        minY=Math.min(minY,py);maxY=Math.max(maxY,py);}
+    }
+    if(maxX>minX&&maxY>minY){
+      var pad=15,sw=maxX-minX+pad*2,sh=maxY-minY+pad*2;
+      var sc=Math.min((W-40)/sw,(H-40)/sh);
+      ctx.drawImage(cv,minX-pad,minY-pad,sw,sh,(W-sw*sc)/2,(H-sh*sc)/2,sw*sc,sh*sc);
+    }
+  } else {
+    // Re-draw from stroke data for clean, scalable result
+    // Find bounds
+    var allPts=[];
+    S.strokes.forEach(function(st){st.pts.forEach(function(p){allPts.push(p)})});
+    if(allPts.length===0)return out;
+    var minX2=allPts[0].x,maxX2=allPts[0].x,minY2=allPts[0].y,maxY2=allPts[0].y;
+    allPts.forEach(function(p){
+      minX2=Math.min(minX2,p.x);maxX2=Math.max(maxX2,p.x);
+      minY2=Math.min(minY2,p.y);maxY2=Math.max(maxY2,p.y);
+    });
+    var pad=25;
+    minX2-=pad;maxX2+=pad;minY2-=pad;maxY2+=pad;
+    var srcW2=maxX2-minX2,srcH2=maxY2-minY2;
+    // Scale up to fill output canvas
+    var sc2=Math.min((W-20)/srcW2,(H-20)/srcH2);
+    var offX2=(W-srcW2*sc2)/2-minX2*sc2;
+    var offY2=(H-srcH2*sc2)/2-minY2*sc2;
+    ctx.strokeStyle='#000';
+    ctx.lineWidth=Math.max(6,8*sc2);  // thick strokes
+    ctx.lineCap='round';ctx.lineJoin='round';
+    S.strokes.forEach(function(st){
+      if(!st.pts||st.pts.length<2)return;
+      ctx.beginPath();
+      ctx.moveTo(st.pts[0].x*sc2+offX2,st.pts[0].y*sc2+offY2);
+      for(var i=1;i<st.pts.length;i++)
+        ctx.lineTo(st.pts[i].x*sc2+offX2,st.pts[i].y*sc2+offY2);
+      ctx.stroke();
+    });
   }
-  ctx.putImageData(imgd,0,0);
-  // Dilate (thicken strokes) for better recognition
-  var ctx2=document.createElement('canvas');ctx2.width=tmp.width;ctx2.height=tmp.height;
-  var c2=ctx2.getContext('2d');
-  c2.fillStyle='#fff';c2.fillRect(0,0,ctx2.width,ctx2.height);
-  c2.filter='blur('+scale+'px)';c2.drawImage(tmp,0,0);c2.filter='none';
-  // Re-binarize after blur
-  var id2=c2.getImageData(0,0,ctx2.width,ctx2.height);var d2=id2.data;
-  for(var j=0;j<d2.length;j+=4){
-    var v=(d2[j]+d2[j+1]+d2[j+2])/3;
-    if(v<200){d2[j]=d2[j+1]=d2[j+2]=0}else{d2[j]=d2[j+1]=d2[j+2]=255}
-    d2[j+3]=255;
-  }
-  c2.putImageData(id2,0,0);
-  return ctx2;
+  return out;
 }
 
 async function recognizeLocal(isClock){
   var cv=document.getElementById('CC');if(!cv)return null;
-  var st=document.getElementById('OCR');
-  if(!OCR_READY){
-    if(st)st.textContent='⏳ 載入辨識模型中…';
-    await initOCR();
-    if(!OCR_READY)return null;
+  function setSt(t,c){
+    var el=document.getElementById('OCR');
+    if(el){el.textContent=t;if(c)el.style.color=c}
   }
-  if(st)st.textContent='🔍 辨識中…';
+  if(!OCR_READY){
+    setSt('⏳ 載入模型中…','#FF9800');
+    await initOCR();
+    if(!OCR_READY){setSt('❌ 模型未就緒，請用鍵盤','#EF4444');return null}
+  }
+  setSt('🔍 辨識中…','#1976D2');
   try{
     var processed=preprocessCanvas(cv);
+    // Temporarily update PSM for recognition
+    await OCR_WORKER.setParameters({
+      tessedit_char_whitelist:'0123456789/:',
+      tessedit_pageseg_mode:'7',
+    });
     var result=await OCR_WORKER.recognize(processed);
-    var txt=(result.data.text||'').trim().replace(/[^0-9:]/g,'');
-    console.log('OCR raw:',result.data.text,'cleaned:',txt);
+    var raw=result.data.text||'';
+    var txt=raw.trim().replace(/[^0-9:./]/g,'').replace(/[./]/g,'');
+    console.log('OCR raw:',JSON.stringify(raw),'->',txt,
+      'conf:',result.data.confidence);
+    if(!txt||txt.length===0){
+      // Try PSM 8 as fallback
+      await OCR_WORKER.setParameters({tessedit_pageseg_mode:'8'});
+      var r2=await OCR_WORKER.recognize(processed);
+      txt=(r2.data.text||'').trim().replace(/[^0-9:]/g,'');
+      console.log('PSM8 fallback:',txt);
+    }
     if(isClock){
       var m=txt.match(/\d{1,2}:\d{2}/);
-      return m?m[0]:null;
+      if(m){setSt('✓ '+m[0],'#4CAF50');return m[0]}
+      setSt('⚠️ 格式錯誤，請寫 H:MM','#FF9800');return null;
     } else {
-      // Try to get a clean number
       var nums=txt.match(/\d+/g);
-      if(!nums||nums.length===0)return null;
-      // Return longest number found (most likely the answer)
-      return nums.sort(function(a,b){return b.length-a.length})[0];
+      if(!nums||nums.length===0){
+        setSt('⚠️ 無法辨識，請重寫或用鍵盤','#EF4444');return null;
+      }
+      var ans=nums.sort(function(a,b){return b.length-a.length})[0];
+      setSt('✓ 辨識：'+ans,'#4CAF50');
+      return ans;
     }
   }catch(e){
-    console.error('OCR error:',e);
-    if(st)st.textContent='❌ 辨識失敗，請重寫';return null;
+    console.error('OCR:',e);
+    setSt('❌ 錯誤：'+e.message,'#EF4444');return null;
   }
 }
 
@@ -325,7 +796,7 @@ async function saveP(){if(!S.p)return;var k='mt_p_'+S.p.name,d=JSON.stringify(S.
 async function loadPD(name){var k='mt_p_'+name;try{if(window.storage){var r=await window.storage.get(k,true);if(r&&r.value)return JSON.parse(r.value)}}catch(e){}try{var d=localStorage.getItem(k);if(d)return JSON.parse(d)}catch(e){}return null}
 function today(){return new Date().toISOString().slice(0,10)}
 function expN(lv){return lv*100}
-function newP(name,pin,disp){return{name:name,pin:hPin(pin),displayName:disp||name,coins:150,level:1,exp:0,totalC:0,totalA:0,bestStreak:0,totalCE:150,inv:{},bldgInv:{},town:(function(){var t=Array(MSZ*MSZ).fill(null);t[5*MSZ+5]='WH';return t}()),landSize:20,farms:{},factories:{},animalSlots:{},orders:[],collect:{},mgDone:{},settings:{hw:false},loginDays:1,lastDay:today(),warehouseCap:100}}
+function newP(name,pin,disp){return{name:name,pin:hPin(pin),displayName:disp||name,coins:150,level:1,exp:0,totalC:0,totalA:0,bestStreak:0,totalCE:150,inv:{},bldgInv:{},town:(function(){var t=Array(MSZ*MSZ).fill(null);t[5*MSZ+5]='WH';return t}()),landSize:20,farms:{},factories:{},animalSlots:{},orders:[],collect:{},mgDone:{},settings:{hw:false},loginDays:1,lastDay:today(),warehouseCap:100,achievements:{},dailyQuest:null,questDone:false}}
 function rnd(a,b){return Math.floor(Math.random()*(b-a+1))+a}
 function pick(a){return a[rnd(0,a.length-1)]}
 function fmt(s){if(s<0)s=0;return('0'+Math.floor(s/60)).slice(-2)+':'+('0'+(s%60)).slice(-2)}
@@ -342,6 +813,71 @@ function addG(id,a,force){
 }
 function hasG(id,a){return(S.p.inv[id]||0)>=a}
 function remG(id,a){S.p.inv[id]=(S.p.inv[id]||0)-a;if(S.p.inv[id]<0)S.p.inv[id]=0}
+var ACHIEVEMENTS = {
+  first_quiz:  {id:'first_quiz',  e:'🎓', n:'初次答題',    desc:'第一次完成答題'},
+  streak5:     {id:'streak5',     e:'🔥', n:'火力全開',    desc:'答題連續答對5題'},
+  streak10:    {id:'streak10',    e:'💥', n:'無敵連答',    desc:'答題連續答對10題'},
+  lv5:         {id:'lv5',         e:'⭐', n:'新手畢業',    desc:'達到5級'},
+  lv10:        {id:'lv10',        e:'🌟', n:'中級達人',    desc:'達到10級'},
+  orders10:    {id:'orders10',    e:'📦', n:'訂單達人',    desc:'完成10個訂單'},
+  rich:        {id:'rich',        e:'💰', n:'小鎮富翁',    desc:'累積500金幣'},
+  builder:     {id:'builder',     e:'🏗',  n:'建設者',      desc:'放置10棟建築'},
+  perfect:     {id:'perfect',     e:'💯', n:'完美作答',    desc:'答題全對一次'},
+};
+
+function checkAchievements(trigger, val) {
+  if(!S.p)return;
+  if(!S.p.achievements)S.p.achievements={};
+  var unlocked=[];
+  function earn(id){
+    if(!S.p.achievements[id]){
+      S.p.achievements[id]=true;
+      var a=ACHIEVEMENTS[id];
+      if(a){
+        unlocked.push(a);
+        var ov=document.createElement('div');
+        ov.style.cssText='position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#7B1FA2,#1565C0);color:#fff;border-radius:16px;padding:12px 20px;z-index:9999;text-align:center;animation:pop .4s ease;box-shadow:0 4px 20px rgba(0,0,0,.4);min-width:200px';
+        ov.innerHTML='<div style="font-size:.65rem;opacity:.8;margin-bottom:2px">🏆 成就解鎖！</div><div style="font-size:1.2rem">'+a.e+'</div><div style="font-size:.85rem;font-weight:700;margin-top:2px">'+a.n+'</div><div style="font-size:.65rem;opacity:.75">'+a.desc+'</div>';
+        document.body.appendChild(ov);setTimeout(function(){ov.remove()},3000);
+        S.p.coins+=15;
+        toast('🏆 '+a.n+' +🪙15');
+      }
+    }
+  }
+  if(trigger==='quiz'){earn('first_quiz')}
+  if(trigger==='streak'&&val>=5)earn('streak5');
+  if(trigger==='streak'&&val>=10)earn('streak10');
+  if(trigger==='perfect')earn('perfect');
+  if(trigger==='level'&&S.p.level>=5)earn('lv5');
+  if(trigger==='level'&&S.p.level>=10)earn('lv10');
+  if(trigger==='coins'&&S.p.totalCE>=500)earn('rich');
+  if(trigger==='orders'&&(S.p.totalOrders||0)>=10)earn('orders10');
+  if(trigger==='build'){
+    var cnt=S.p.town.filter(function(t){return t&&t.indexOf('_PART_')<0}).length;
+    if(cnt>=10)earn('builder');
+  }
+  if(unlocked.length)saveP();
+}
+
+function checkDailyQuest(type, amount) {
+  if(!S.p||!S.p.dailyQuest||S.p.dailyQuest.done)return;
+  var q=S.p.dailyQuest.quest;
+  if(q.done)return;
+  if(q.type===type){
+    if(q.target){q.progress=(q.progress||0)+amount;if(q.progress>=q.target){q.done=true}}
+    else{q.done=true}
+    if(q.done){
+      S.p.dailyQuest.done=true;
+      S.p.coins+=q.reward;S.p.totalCE=(S.p.totalCE||0)+q.reward;
+      saveP();
+      var ov2=document.createElement('div');
+      ov2.style.cssText='position:fixed;top:20%;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#2E7D32,#1565C0);color:#fff;border-radius:16px;padding:16px 24px;z-index:9999;text-align:center;animation:pop .4s ease;box-shadow:0 4px 20px rgba(0,0,0,.4)';
+      ov2.innerHTML='<div style="font-size:2rem">🎯</div><div style="font-size:1rem;font-weight:900;margin:6px 0">每日任務完成！</div><div style="font-size:.78rem;opacity:.9">'+q.desc+'</div><div style="font-size:1.4rem;font-weight:900;color:#FFD700;margin-top:6px">+🪙'+q.reward+'</div>';
+      document.body.appendChild(ov2);setTimeout(function(){ov2.remove()},3000);
+    }else saveP();
+  }
+}
+
 function checkLv(){
   while(S.p.exp>=expN(S.p.level)){
     S.p.exp-=expN(S.p.level);S.p.level++;var b=S.p.level*15;S.p.coins+=b;S.p.totalCE=(S.p.totalCE||0)+b;
@@ -383,6 +919,8 @@ function fulOrder(oi){
   ord.items.forEach(function(it){remG(it.g,it.a)});
   S.p.coins+=ord.reward;S.p.totalCE=(S.p.totalCE||0)+ord.reward;S.p.exp+=20;checkLv();
   S.p.orders.splice(oi,1);if(S.p.orders.length<2)genOrders();
+  S.p.totalOrders=(S.p.totalOrders||0)+1;
+  checkAchievements('orders',1);checkDailyQuest('order',1);
   saveP();toast('訂單完成！+'+ord.reward+'🪙');rOrders()
 }
 function refOrd(oi){
@@ -419,11 +957,31 @@ function rfDots(){
 function initCv(){
   var cv=document.getElementById('CC');if(!cv)return;
   S.cvCtx=cv.getContext('2d');S.drawing=false;S.strokes=[];
+  // Auto-preview recognition as user writes
+  function previewOCR(){
+    if(!S.strokes||S.strokes.length===0)return;
+    var preview=recognizeStrokesFallback(S.strokes,false);
+    var st=document.getElementById('OCR');
+    if(st){
+      if(preview!==null){
+        st.textContent='預覽：'+preview;
+        st.style.color='#1976D2';
+        st.style.fontSize='1.1rem';
+        st.style.fontWeight='900';
+      } else {
+        st.textContent='請繼續寫…';
+        st.style.color='#9EA8B1';
+        st.style.fontSize='.75rem';
+        st.style.fontWeight='400';
+      }
+    }
+  }
+  cv._previewOCR=previewOCR;
   var ctx=S.cvCtx;ctx.strokeStyle='#1B2631';ctx.lineWidth=4;ctx.lineCap='round';ctx.lineJoin='round';
   function gp(e){var r=cv.getBoundingClientRect(),s=e.touches?e.touches[0]:e;return{x:(s.clientX-r.left)*cv.width/r.width,y:(s.clientY-r.top)*cv.height/r.height}}
   cv.addEventListener('pointerdown',function(e){e.preventDefault();S.drawing=true;var p=gp(e);if(S.tool==='pen'){ctx.globalCompositeOperation='source-over';ctx.lineWidth=4;S.strokes.push({pts:[p]});ctx.beginPath();ctx.moveTo(p.x,p.y)}else{ctx.globalCompositeOperation='destination-out';ctx.lineWidth=22;ctx.beginPath();ctx.moveTo(p.x,p.y)}},{passive:false});
   cv.addEventListener('pointermove',function(e){e.preventDefault();if(!S.drawing)return;var p=gp(e);if(S.tool==='pen'&&S.strokes.length)S.strokes[S.strokes.length-1].pts.push(p);ctx.lineTo(p.x,p.y);ctx.stroke();ctx.beginPath();ctx.moveTo(p.x,p.y)},{passive:false});
-  cv.addEventListener('pointerup',function(){S.drawing=false;S.cvCtx.globalCompositeOperation='source-over';S.cvCtx.beginPath()});
+  cv.addEventListener('pointerup',function(){S.drawing=false;S.cvCtx.globalCompositeOperation='source-over';S.cvCtx.beginPath();if(cv._previewOCR)cv._previewOCR()});
   cv.addEventListener('pointercancel',function(){S.drawing=false;S.cvCtx.globalCompositeOperation='source-over'});
 }
 function clrCv(){var cv=document.getElementById('CC');if(cv&&S.cvCtx){S.cvCtx.clearRect(0,0,cv.width,cv.height);S.strokes=[]}}
@@ -434,13 +992,47 @@ function undoSt(){
 }
 async function recognizeHW(isClock){
   var st=document.getElementById('OCR');
-  // Try free local Tesseract OCR
-  var result=await recognizeLocal(isClock);
-  if(result){
-    if(st)st.textContent='辨識結果：'+result;
-    return result;
+  function setStatus(t,c){
+    if(st){st.textContent=t;if(c)st.style.color=c;st.style.fontWeight='700'}
   }
-  if(st)st.textContent='⚠️ 無法辨識，請寫清楚一點或用鍵盤輸入';
+  if(!S.strokes||S.strokes.length===0){
+    setStatus('⚠️ 請先寫上答案','#FF9800');return null;
+  }
+
+  // Get all points for splitting into groups
+  var all=[];S.strokes.forEach(function(s){all=all.concat(s.pts)});
+  var minX=all[0].x,maxX=all[0].x;
+  all.forEach(function(p){minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x)});
+  var groups=splitIntoDigitsFallback(S.strokes,minX,maxX);
+
+  // Try TensorFlow.js MNIST if available
+  if(TF_READY===true&&TF_MODEL){
+    setStatus('🔍 AI 辨識中…','#1976D2');
+    try{
+      var digits=[];
+      for(var i=0;i<Math.min(groups.length,3);i++){
+        var tfP=recognizeWithTF(groups[i].strokes);
+        var toP=new Promise(function(_,rej){setTimeout(function(){rej('timeout')},4000)});
+        var d=await Promise.race([tfP,toP]);
+        if(d===null||d===undefined){digits=null;break}
+        digits.push(d);
+      }
+      if(digits&&digits.length>0){
+        var ans=digits.join('');
+        setStatus('✅ AI辨識：'+ans,'#4CAF50');return ans;
+      }
+    }catch(e){
+      console.log('TF error:',e);
+      // Fall through to rule-based
+    }
+  }
+
+  // Rule-based fallback (always works, offline)
+  var result=recognizeStrokesFallback(S.strokes,isClock);
+  if(result!==null){
+    setStatus('✅ 辨識：'+result,'#2E7D32');return result;
+  }
+  setStatus('⚠️ 無法辨識，請重寫或改用鍵盤','#FF9800');
   return null;
 }
 var GRR={d1:[1,9],d2:[10,99],d3:[100,999],d4:[1000,9999]};
@@ -814,9 +1406,16 @@ function isoHandleClick(cx,cy){
 function isoZoom(d){ISO.zoom=Math.min(3,Math.max(0.25,ISO.zoom*d));renderISO()}
 function isoCtr(){
   var cv=ISO.canvas;if(!cv)return;
-  var vis=Math.min(MSZ,(S.p&&S.p.landSize)||20);
-  ISO.offX=cv.width/2;ISO.offY=cv.height*.2;
-  ISO.zoom=Math.min(1.4,cv.width/(vis*ISO.TW*.8));
+  var visN=Math.min(MSZ,(S.p&&S.p.landSize)||20);
+  // Show full map: at TW=64, TH=32 the map is visN*64 wide in iso space
+  // iso screen width = visN * TW * zoom, we want this = cv.width * 0.85
+  ISO.zoom = cv.width * 0.85 / (visN * ISO.TW);
+  ISO.zoom = Math.max(0.35, Math.min(1.4, ISO.zoom));
+  ISO.offX = cv.width/2;
+  // Vertical: map top is at y=0, bottom at y=visN*TH*zoom
+  // Center vertically
+  var mapH = visN * ISO.TH * ISO.zoom;
+  ISO.offY = (cv.height - mapH) * 0.3;
   renderISO();
 }
 
@@ -826,7 +1425,7 @@ function isoCtr(){
 // ISOMETRIC ENGINE v2 - Township style complete rewrite
 // ============================================================
 var ISO={
-  TW:96, TH:48,
+  TW:64, TH:32,
   canvas:null, ctx:null,
   offX:0, offY:0, zoom:1,
   dragging:false, dragSX:0, dragSY:0, dragOX:0, dragOY:0,
@@ -884,18 +1483,492 @@ function dBox(ctx,sx,sy,bh,cT,cL,cR,outlineAlpha){
   if(oa>0){ctx.strokeStyle='rgba(0,0,0,'+oa+')';ctx.lineWidth=0.8;ctx.stroke()}
 }
 
+// ---- MULTI-TILE & REALISTIC BUILDINGS ----
+// ============================================================
+// REALISTIC ISOMETRIC BUILDING RENDERER
+// Township-style: proper 3D boxes, roofs, windows, details
+// ============================================================
+
+// Multi-tile building definitions
+// anchor = top-left corner, size = [cols, rows]
+var MULTITILE = {
+  WH:    {w:3, h:3},  // Warehouse 3x3
+  MILL:  {w:2, h:2},  // Factory 2x2
+  BAKE:  {w:2, h:2},
+  DAIRY: {w:2, h:2},
+  TEXTILE:{w:2,h:2},
+  CA:    {w:2, h:2},  // Castle 2x2
+};
+
+// Get anchor cell for a multi-tile building at any cell it occupies
+function getAnchor(idx, bId) {
+  var mt = MULTITILE[bId];
+  if (!mt) return idx;
+  // Already the anchor if town[idx] === bId and it's the top-left
+  var col = idx % MSZ, row = Math.floor(idx / MSZ);
+  // Find top-left by checking what the anchor stores
+  var p = S.p;
+  if (p.anchors && p.anchors[idx + '_' + bId]) return p.anchors[idx + '_' + bId];
+  return idx;
+}
+
+// Place multi-tile building: mark all cells
+function placeMulti(anchorIdx, bId) {
+  var mt = MULTITILE[bId];
+  var p = S.p;
+  if (!p.anchors) p.anchors = {};
+  var aCol = anchorIdx % MSZ, aRow = Math.floor(anchorIdx / MSZ);
+  var w = mt ? mt.w : 1, h = mt ? mt.h : 1;
+  for (var r = 0; r < h; r++) {
+    for (var c = 0; c < w; c++) {
+      var cellIdx = (aRow + r) * MSZ + (aCol + c);
+      if (r === 0 && c === 0) {
+        p.town[cellIdx] = bId; // anchor stores the building id
+      } else {
+        p.town[cellIdx] = bId + '_PART_' + anchorIdx; // other cells store reference to anchor
+      }
+    }
+  }
+}
+
+// Remove multi-tile building
+function removeMulti(anchorIdx, bId) {
+  var mt = MULTITILE[bId];
+  if (!mt) { S.p.town[anchorIdx] = null; return; }
+  var aCol = anchorIdx % MSZ, aRow = Math.floor(anchorIdx / MSZ);
+  for (var r = 0; r < mt.h; r++) {
+    for (var c = 0; c < mt.w; c++) {
+      S.p.town[(aRow + r) * MSZ + (aCol + c)] = null;
+    }
+  }
+}
+
+// Check if multi-tile placement fits
+function canPlaceMulti(anchorIdx, bId) {
+  var mt = MULTITILE[bId];
+  if (!mt) return !S.p.town[anchorIdx];
+  var vis = Math.min(MSZ, S.p.landSize || 20);
+  var aCol = anchorIdx % MSZ, aRow = Math.floor(anchorIdx / MSZ);
+  if (aCol + mt.w > vis || aRow + mt.h > vis) return false;
+  for (var r = 0; r < mt.h; r++)
+    for (var c = 0; c < mt.w; c++)
+      if (S.p.town[(aRow + r) * MSZ + (aCol + c)]) return false;
+  return true;
+}
+
+// ---- Draw a proper isometric building with roof ----
+function drawIsoBuilding(ctx, sx, sy, bId, bd, z) {
+  var TW = ISO.TW * z, TH = ISO.TH * z;
+  var mt = MULTITILE[bId];
+  var mw = mt ? mt.w : 1, mh = mt ? mt.h : 1;
+  // Scale tile footprint for multi-tile
+  var ftW = TW * mw, ftH = TH * mh;
+
+  var cfg = ISO_BLDG[bId] || ISO_BLDG['DEFAULT'];
+  var wallH = cfg.wallH * z;
+
+  // Shadow ellipse under building
+  ctx.save();
+  ctx.globalAlpha = 0.18;
+  ctx.beginPath();
+  ctx.ellipse(sx, sy + TH * mh * 0.5, ftW * 0.55, ftH * 0.35, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#000'; ctx.fill();
+  ctx.restore();
+
+  // Base ground tile (soil/foundation)
+  if (cfg.foundation) {
+    var fc = cfg.foundation;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx + ftW/2, sy + ftH/2);
+    ctx.lineTo(sx, sy + ftH);
+    ctx.lineTo(sx - ftW/2, sy + ftH/2);
+    ctx.closePath();
+    ctx.fillStyle = fc; ctx.fill();
+  }
+
+  // Wall base Y (bottom of building)
+  var baseY = sy + TH * mh;
+
+  // RIGHT wall
+  ctx.beginPath();
+  ctx.moveTo(sx + ftW/2, baseY - TH * mh / 2 - wallH);
+  ctx.lineTo(sx + ftW/2, baseY - TH * mh / 2);
+  ctx.lineTo(sx, baseY);
+  ctx.lineTo(sx, baseY - wallH);
+  ctx.closePath();
+  ctx.fillStyle = cfg.wallR; ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 1; ctx.stroke();
+
+  // LEFT wall
+  ctx.beginPath();
+  ctx.moveTo(sx - ftW/2, baseY - TH * mh / 2 - wallH);
+  ctx.lineTo(sx - ftW/2, baseY - TH * mh / 2);
+  ctx.lineTo(sx, baseY);
+  ctx.lineTo(sx, baseY - wallH);
+  ctx.closePath();
+  ctx.fillStyle = cfg.wallL; ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 1; ctx.stroke();
+
+  // TOP face (roof base / flat top)
+  ctx.beginPath();
+  ctx.moveTo(sx, baseY - wallH);
+  ctx.lineTo(sx + ftW/2, baseY - TH * mh / 2 - wallH);
+  ctx.lineTo(sx, baseY - TH * mh - wallH);
+  ctx.lineTo(sx - ftW/2, baseY - TH * mh / 2 - wallH);
+  ctx.closePath();
+  ctx.fillStyle = cfg.roofFlat; ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.lineWidth = 0.8; ctx.stroke();
+
+  // Peaked roof (A-frame)
+  if (cfg.roofPeak && z > 0.3) {
+    var peakH = cfg.roofPeakH * z;
+    var topY = baseY - TH * mh - wallH;
+    // Right slope
+    ctx.beginPath();
+    ctx.moveTo(sx, topY - peakH);
+    ctx.lineTo(sx + ftW/2, topY + TH * mh / 2 - peakH * 0.3);
+    ctx.lineTo(sx, topY + TH * mh);
+    ctx.closePath();
+    ctx.fillStyle = cfg.roofR; ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.stroke();
+    // Left slope
+    ctx.beginPath();
+    ctx.moveTo(sx, topY - peakH);
+    ctx.lineTo(sx - ftW/2, topY + TH * mh / 2 - peakH * 0.3);
+    ctx.lineTo(sx, topY + TH * mh);
+    ctx.closePath();
+    ctx.fillStyle = cfg.roofL; ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.stroke();
+  }
+
+  // Windows on right wall
+  if (cfg.windows && z > 0.4) {
+    var numW = Math.max(1, mw * 2 - 1);
+    var winW = Math.max(4, 7 * z), winH = winW * 0.8;
+    var wallMidY = baseY - wallH * 0.55;
+    for (var wi = 0; wi < numW; wi++) {
+      var wx = sx + (wi + 0.5) * TW / numW / 2 - TW / 4;
+      var wy = wallMidY + (wi % 2) * winH * 0.3;
+      ctx.fillStyle = 'rgba(180,230,255,0.8)';
+      ctx.fillRect(wx - winW/2, wy - winH/2, winW, winH);
+      ctx.strokeStyle = 'rgba(100,150,200,0.6)'; ctx.lineWidth = 0.7; ctx.stroke();
+    }
+  }
+
+  // Door on right wall
+  if (cfg.door && z > 0.35) {
+    var dW = Math.max(5, 9 * z), dH = dW * 1.5;
+    ctx.fillStyle = cfg.doorC || 'rgba(80,40,10,0.9)';
+    ctx.fillRect(sx + TW * 0.08, baseY - dH, dW, dH);
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 0.5; ctx.stroke();
+  }
+
+  // Chimney for factories
+  if (cfg.chimney && z > 0.3) {
+    var numC = mw;
+    for (var ci = 0; ci < numC; ci++) {
+      var cx2 = sx + (ci + 0.5) * TW / numC / 2;
+      var chH = cfg.chimneyH * z;
+      var chW = Math.max(4, 8 * z);
+      // Chimney box
+      var chBaseY = baseY - TH * mh - wallH;
+      ctx.beginPath();
+      ctx.moveTo(cx2, chBaseY - chH);
+      ctx.lineTo(cx2 + chW/2, chBaseY - chH + TH * 0.3);
+      ctx.lineTo(cx2 + chW/2, chBaseY + TH * 0.3);
+      ctx.lineTo(cx2, chBaseY);
+      ctx.closePath();
+      ctx.fillStyle = '#546E7A'; ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(cx2, chBaseY - chH);
+      ctx.lineTo(cx2 - chW/2, chBaseY - chH + TH * 0.3);
+      ctx.lineTo(cx2 - chW/2, chBaseY + TH * 0.3);
+      ctx.lineTo(cx2, chBaseY);
+      ctx.closePath();
+      ctx.fillStyle = '#37474F'; ctx.fill();
+      // Smoke
+      if (z > 0.5) {
+        ctx.save(); ctx.globalAlpha = 0.3 + Math.sin(Date.now() / 600 + ci) * 0.1;
+        for (var si = 0; si < 3; si++) {
+          var sr = (5 + si * 3) * z;
+          ctx.beginPath();
+          ctx.arc(cx2 + si * 3 * z, chBaseY - chH - (10 + si * 12) * z, sr, 0, Math.PI * 2);
+          ctx.fillStyle = '#CFD8DC'; ctx.fill();
+        }
+        ctx.restore();
+      }
+    }
+  }
+
+  // Emoji + Name label
+  if (z > 0.3 && bd) {
+    var topLabelY = baseY - TH * mh - wallH - (cfg.roofPeak ? cfg.roofPeakH * z : 0) - 6 * z;
+    var esz = Math.max(12, 18 * z * mw);
+    ctx.font = esz + 'px serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText(bd.e ? bd.e.charAt(0) : '?', sx, topLabelY);
+  }
+  if (z > 0.45 && bd) {
+    var nsz = Math.max(8, 9 * z);
+    ctx.font = 'bold ' + nsz + 'px system-ui,sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 2.5;
+    var nlY = baseY + 2 * z;
+    ctx.strokeText(bd.n, sx, nlY);
+    ctx.fillStyle = '#fff'; ctx.fillText(bd.n, sx, nlY);
+  }
+}
+
+// Building configs: wallH, wall colors, roof style
+var ISO_BLDG = {
+  // Small house
+  H1: {wallH:55, wallR:'#A1887F', wallL:'#6D4C41', roofFlat:'#BCAAA4',
+       roofPeak:true, roofPeakH:30, roofR:'#EF5350', roofL:'#C62828',
+       windows:true, door:true, doorC:'#4E342E'},
+  // Farm house
+  H2: {wallH:65, wallR:'#FFCC80', wallL:'#FF9800', roofFlat:'#FFE0B2',
+       roofPeak:true, roofPeakH:35, roofR:'#1E88E5', roofL:'#1565C0',
+       windows:true, door:true, doorC:'#5D4037'},
+  // Villa
+  H3: {wallH:80, wallR:'#FFF9C4', wallL:'#F9A825', roofFlat:'#FFFDE7',
+       roofPeak:true, roofPeakH:40, roofR:'#43A047', roofL:'#2E7D32',
+       windows:true, door:true, doorC:'#3E2723'},
+  // Market
+  MK: {wallH:65, wallR:'#FFAB40', wallL:'#E65100', roofFlat:'#FFE0B2',
+       roofPeak:true, roofPeakH:22, roofR:'#F44336', roofL:'#B71C1C',
+       windows:true, door:true},
+  // School
+  SC: {wallH:72, wallR:'#BBDEFB', wallL:'#1565C0', roofFlat:'#E3F2FD',
+       roofPeak:true, roofPeakH:28, roofR:'#EF5350', roofL:'#C62828',
+       windows:true, door:true},
+  // Library
+  LB: {wallH:78, wallR:'#FFF9C4', wallL:'#795548', roofFlat:'#FFFDE7',
+       roofPeak:true, roofPeakH:32, roofR:'#4CAF50', roofL:'#2E7D32',
+       windows:true, door:true},
+  // Hotel
+  HT: {wallH:90, wallR:'#BBDEFB', wallL:'#0D47A1', roofFlat:'#E3F2FD',
+       roofPeak:false, windows:true, door:true},
+  // Castle (2x2)
+  CA: {wallH:110, wallR:'#CFD8DC', wallL:'#37474F', roofFlat:'#ECEFF1',
+       roofPeak:true, roofPeakH:50, roofR:'#546E7A', roofL:'#263238',
+       windows:true, door:true, doorC:'#212121'},
+  // Magic tower
+  ZT: {wallH:105, wallR:'#CE93D8', wallL:'#6A1B9A', roofFlat:'#E1BEE7',
+       roofPeak:true, roofPeakH:55, roofR:'#AB47BC', roofL:'#7B1FA2',
+       windows:true},
+  // Warehouse (3x3) - big yellow storage
+  WH: {wallH:68, wallR:'#FFD54F', wallL:'#FF8F00', roofFlat:'#FFECB3',
+       roofPeak:false, foundation:'#8D6E63', windows:true, door:true, doorC:'#3E2723'},
+  // Factories (2x2) - industrial
+  MILL:    {wallH:85, wallR:'#B0BEC5', wallL:'#455A64', roofFlat:'#CFD8DC',
+            roofPeak:false, chimney:true, chimneyH:55, windows:true},
+  BAKE:    {wallH:75, wallR:'#FFCC80', wallL:'#5D4037', roofFlat:'#FFE0B2',
+            roofPeak:true, roofPeakH:25, roofR:'#FF7043', roofL:'#E64A19',
+            windows:true, door:true},
+  DAIRY:   {wallH:80, wallR:'#E8F5E9', wallL:'#2E7D32', roofFlat:'#F1F8E9',
+            roofPeak:false, windows:true, door:true},
+  TEXTILE: {wallH:85, wallR:'#E1F5FE', wallL:'#1565C0', roofFlat:'#E3F2FD',
+            chimney:true, chimneyH:40, roofPeak:false, windows:true},
+  // Animal pens
+  CHK:{wallH:42, wallR:'#FFCC80', wallL:'#A1887F', roofFlat:'#FFE0B2',
+       roofPeak:true, roofPeakH:20, roofR:'#D84315', roofL:'#BF360C',
+       door:true, doorC:'#4E342E'},
+  COW:{wallH:52, wallR:'#EFEBE9', wallL:'#6D4C41', roofFlat:'#F5F5F5',
+       roofPeak:true, roofPeakH:22, roofR:'#78909C', roofL:'#546E7A',
+       door:true},
+  SHP:{wallH:46, wallR:'#FAFAFA', wallL:'#607D8B', roofFlat:'#ECEFF1',
+       roofPeak:true, roofPeakH:20, roofR:'#90A4AE', roofL:'#607D8B',
+       door:true},
+  PIG:{wallH:42, wallR:'#FFCCBC', wallL:'#D84315', roofFlat:'#FFE0B2',
+       roofPeak:true, roofPeakH:18, roofR:'#EF6C00', roofL:'#BF360C',
+       door:true},
+  // Farm plot
+  FP1:{wallH:5,  wallR:'#8D6E63', wallL:'#4E342E', roofFlat:'#795548'},
+  FP2:{wallH:5,  wallR:'#795548', wallL:'#3E2723', roofFlat:'#6D4C41'},
+  FP3:{wallH:5,  wallR:'#6D4C41', wallL:'#3E2723', roofFlat:'#5D4037'},
+  // Decorations
+  R:  {wallH:16, wallR:'#9E9E9E', wallL:'#424242', roofFlat:'#BDBDBD'},
+  FO: {wallH:28, wallR:'#81D4FA', wallL:'#0288D1', roofFlat:'#B3E5FC'},
+  LA: {wallH:34, wallR:'#FFE082', wallL:'#EF6C00', roofFlat:'#FFF9C4'},
+  DEFAULT:{wallH:45, wallR:'#FFCC80', wallL:'#5D4037', roofFlat:'#FFE0B2',
+           roofPeak:true, roofPeakH:22, roofR:'#F44336', roofL:'#C62828',
+           windows:true, door:true}
+};
+
+
+// ---- Decoration renderer (trees, flowers, rocks) ----
+function drawDeco(ctx,sx,sy,bId,bd,z){
+  var TW=ISO.TW*z, TH=ISO.TH*z;
+  var baseY=sy+TH;
+
+  if(bId==='T'||bId==='T2'){
+    var sc=bId==='T2'?1.2:0.75;
+    // Trunk - thin brown box
+    var tH=20*z*sc, tW=6*z*sc;
+    // Shadow
+    ctx.save();ctx.globalAlpha=0.15;
+    ctx.beginPath();ctx.ellipse(sx,baseY,TW*.35,TH*.2,0,0,Math.PI*2);
+    ctx.fillStyle='#000';ctx.fill();ctx.restore();
+    // Trunk right
+    ctx.beginPath();
+    ctx.moveTo(sx+tW/2,baseY-tH);ctx.lineTo(sx+tW/2,baseY);
+    ctx.lineTo(sx,baseY);ctx.lineTo(sx,baseY-tH);
+    ctx.closePath();ctx.fillStyle='#8D6E63';ctx.fill();
+    // Trunk left
+    ctx.beginPath();
+    ctx.moveTo(sx-tW/2,baseY-tH);ctx.lineTo(sx-tW/2,baseY);
+    ctx.lineTo(sx,baseY);ctx.lineTo(sx,baseY-tH);
+    ctx.closePath();ctx.fillStyle='#6D4C41';ctx.fill();
+    // Trunk top
+    ctx.beginPath();
+    ctx.moveTo(sx,baseY-tH);ctx.lineTo(sx+tW/2,baseY-tH+TH*.15);
+    ctx.lineTo(sx,baseY-tH+TH*.3);ctx.lineTo(sx-tW/2,baseY-tH+TH*.15);
+    ctx.closePath();ctx.fillStyle='#795548';ctx.fill();
+    // Foliage - 3 layered circles
+    var fy=baseY-tH-8*z*sc;
+    var fr=TW*.38*sc;
+    [[0,'rgba(56,142,60,0.95)'],[-4*z*sc,'rgba(76,175,80,0.9)'],[-9*z*sc,'rgba(129,199,132,0.85)']].forEach(function(layer){
+      ctx.beginPath();ctx.arc(sx,fy+layer[0],fr*(1+layer[0]*0.01),0,Math.PI*2);
+      ctx.fillStyle=layer[1];ctx.fill();
+    });
+    // Highlight
+    ctx.save();ctx.globalAlpha=0.25;
+    ctx.beginPath();ctx.arc(sx-fr*.25,fy-fr*.3,fr*.4,0,Math.PI*2);
+    ctx.fillStyle='#C8E6C9';ctx.fill();ctx.restore();
+    return;
+  }
+
+  if(bId==='G'){
+    // Bush - round green mound
+    var br=TW*.3;
+    ctx.save();ctx.globalAlpha=0.12;
+    ctx.beginPath();ctx.ellipse(sx,baseY,br,br*.4,0,0,Math.PI*2);
+    ctx.fillStyle='#000';ctx.fill();ctx.restore();
+    ctx.beginPath();ctx.arc(sx,baseY-br*.4,br,0,Math.PI*2);
+    ctx.fillStyle='#388E3C';ctx.fill();
+    ctx.beginPath();ctx.arc(sx,baseY-br*.55,br*.75,0,Math.PI*2);
+    ctx.fillStyle='#4CAF50';ctx.fill();
+    ctx.save();ctx.globalAlpha=0.3;
+    ctx.beginPath();ctx.arc(sx-br*.2,baseY-br*.8,br*.3,0,Math.PI*2);
+    ctx.fillStyle='#A5D6A7';ctx.fill();ctx.restore();
+    return;
+  }
+
+  if(bId==='FL'){
+    // Flower patch - flat with flowers
+    ctx.beginPath();
+    ctx.moveTo(sx,sy);ctx.lineTo(sx+TW/2,sy+TH/2);
+    ctx.lineTo(sx,sy+TH);ctx.lineTo(sx-TW/2,sy+TH/2);
+    ctx.closePath();ctx.fillStyle='#A5D6A7';ctx.fill();
+    if(z>0.4){
+      var flowers=['🌸','🌼','🌺'];
+      for(var fi=0;fi<3;fi++){
+        ctx.font=(10*z)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillText(flowers[fi%3],sx+(fi-1)*TW*.2,sy+TH*.5+(fi%2-.5)*TH*.2);
+      }
+    }
+    return;
+  }
+
+  if(bId==='R'){
+    // Rock - grey irregular box
+    var rh=12*z;
+    ctx.beginPath();
+    ctx.moveTo(sx,sy+TH-rh);ctx.lineTo(sx+TW*.35,sy+TH*.6-rh);
+    ctx.lineTo(sx+TW*.35,sy+TH*.6);ctx.lineTo(sx,sy+TH);ctx.closePath();
+    ctx.fillStyle='#9E9E9E';ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(sx,sy+TH-rh);ctx.lineTo(sx-TW*.35,sy+TH*.6-rh);
+    ctx.lineTo(sx-TW*.35,sy+TH*.6);ctx.lineTo(sx,sy+TH);ctx.closePath();
+    ctx.fillStyle='#616161';ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(sx,sy+TH-rh);ctx.lineTo(sx+TW*.35,sy+TH*.6-rh);
+    ctx.lineTo(sx,sy+TH*.2-rh);ctx.lineTo(sx-TW*.35,sy+TH*.6-rh);ctx.closePath();
+    ctx.fillStyle='#BDBDBD';ctx.fill();
+    return;
+  }
+
+  if(bId==='SU'){
+    // Sunflower - stem + circle
+    ctx.strokeStyle='#558B2F';ctx.lineWidth=2.5*z;
+    ctx.beginPath();ctx.moveTo(sx,baseY);ctx.lineTo(sx,baseY-22*z);ctx.stroke();
+    ctx.beginPath();ctx.arc(sx,baseY-26*z,8*z,0,Math.PI*2);
+    ctx.fillStyle='#FDD835';ctx.fill();
+    ctx.beginPath();ctx.arc(sx,baseY-26*z,4*z,0,Math.PI*2);
+    ctx.fillStyle='#5D4037';ctx.fill();
+    return;
+  }
+
+  if(bId==='LA'){
+    // Lantern on pole
+    ctx.strokeStyle='#5D4037';ctx.lineWidth=2*z;
+    ctx.beginPath();ctx.moveTo(sx,baseY);ctx.lineTo(sx,baseY-28*z);ctx.stroke();
+    // Lantern box
+    var lh=12*z,lw=8*z;
+    ctx.fillStyle='#FF8F00';
+    ctx.fillRect(sx-lw/2,baseY-28*z-lh,lw,lh);
+    ctx.fillStyle='rgba(255,235,59,0.6)';
+    ctx.fillRect(sx-lw/2+1,baseY-28*z-lh+1,lw-2,lh-2);
+    return;
+  }
+
+  if(bId==='FO'){
+    // Fountain - round basin
+    var fR=TW*.3;
+    ctx.beginPath();ctx.ellipse(sx,baseY-4*z,fR,fR*.5,0,0,Math.PI*2);
+    ctx.fillStyle='#0288D1';ctx.fill();
+    ctx.strokeStyle='#B3E5FC';ctx.lineWidth=2*z;ctx.stroke();
+    // Water spray
+    if(z>0.5){
+      ctx.fillStyle='rgba(100,200,255,0.7)';
+      for(var wi=0;wi<5;wi++){
+        var a2=wi/5*Math.PI*2;
+        ctx.beginPath();ctx.arc(sx+Math.cos(a2)*fR*.4,baseY-12*z+Math.sin(a2)*4*z,2*z,0,Math.PI*2);ctx.fill();
+      }
+    }
+    return;
+  }
+
+  if(bId==='MU'){
+    // Mushroom - stem + cap
+    ctx.fillStyle='#FFCCBC';
+    ctx.fillRect(sx-4*z,baseY-14*z,8*z,14*z);
+    ctx.beginPath();ctx.arc(sx,baseY-16*z,TW*.25,Math.PI,0);
+    ctx.fillStyle='#E53935';ctx.fill();
+    ctx.beginPath();ctx.arc(sx,baseY-16*z,TW*.25,Math.PI,0);
+    // White spots
+    if(z>0.4){
+      ctx.fillStyle='rgba(255,255,255,0.7)';
+      ctx.beginPath();ctx.arc(sx-3*z,baseY-18*z,2.5*z,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(sx+4*z,baseY-16*z,2*z,0,Math.PI*2);ctx.fill();
+    }
+    return;
+  }
+
+  // Default deco: emoji on flat tile
+  ctx.beginPath();
+  ctx.moveTo(sx,sy);ctx.lineTo(sx+TW/2,sy+TH/2);ctx.lineTo(sx,sy+TH);ctx.lineTo(sx-TW/2,sy+TH/2);
+  ctx.closePath();ctx.fillStyle='rgba(76,175,80,.15)';ctx.fill();
+  if(z>0.3&&bd&&bd.e){
+    ctx.font=(14*z)+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(bd.e,sx,sy+TH*.55);
+  }
+}
+
 // ---- Ground tile rendering ----
 function drawGround(ctx,sx,sy,col,row){
   var tw=ISO.TW*ISO.zoom,th=ISO.TH*ISO.zoom;
   var r=srand(col,row);
   var r2=srand(col+37,row+13);
   var r3=srand(col*13,row*7);
-  // Smooth color variation - no harsh edges
-  var g=Math.floor(150+r*40);
-  var base='rgb(50,'+g+',70)';
-  // Occasional dirt patch - soft
-  if(r<0.06){base='rgb('+(140+r3*20)+','+(100+r3*15)+','+(60+r3*10)+')'}
-  else if(r<0.12){base='rgb(55,'+(g-10)+',65)'}
+  var hr2=new Date().getHours();
+  var isNight2=hr2>=21||hr2<5;
+  var nightMul=isNight2?0.55:1;
+  var g=Math.floor((150+r*40)*nightMul);
+  var rv=Math.floor(50*nightMul), bv=Math.floor(70*nightMul);
+  var base='rgb('+rv+','+g+','+bv+')';
+  if(r<0.06){base='rgb('+(Math.floor((140+r3*20)*nightMul))+','+(Math.floor((100+r3*15)*nightMul))+','+(Math.floor((60+r3*10)*nightMul))+')'}
   dTile(ctx,sx,sy,base);
   // NO stroke - completely seamless
   // Tiny flowers/grass on some tiles
@@ -955,7 +2028,7 @@ function drawLockedZone(ctx,sx,sy,col,row){
   // ALWAYS draw a tree or bush - fill completely
   if(r>0.15){
     // Tree - scale varies for natural look
-    var scale=0.45+r2*0.65;
+    var scale=0.7+r2*0.8;
     drawTree(ctx,sx,sy,scale);
   } else {
     // Low bush
@@ -976,44 +2049,36 @@ function drawLockedZone(ctx,sx,sy,col,row){
 
 // ---- Building color palettes (Township-like) ----
 var BLD={
-  // Decorations
-  R:  {h:8, cT:'#A0A0A0',cL:'#606060',cR:'#808080', em:'🪨'},
-  G:  {h:4, cT:'#5DC47A',cL:'#2E7D32',cR:'#388E3C', em:'🌿'},
-  T:  {h:0, tree:true, scale:0.6},
-  T2: {h:0, tree:true, scale:1.0},
-  FL: {h:4, cT:'#FF80AB',cL:'#C2185B',cR:'#E91E63', em:'🌸'},
-  MU: {h:5, cT:'#FF6F00',cL:'#BF360C',cR:'#E64A19', em:'🍄'},
-  FO: {h:16,cT:'#90CAF9',cL:'#1565C0',cR:'#1976D2', em:'⛲'},
-  LA: {h:20,cT:'#FFD54F',cL:'#E65100',cR:'#FF6F00', em:'🏮'},
-  SU: {h:10,cT:'#FFD600',cL:'#F57F17',cR:'#FBC02D', em:'🌻'},
-  // Buildings
-  H1: {h:36,cT:'#FFCC80',cL:'#5D4037',cR:'#795548'},
-  H2: {h:44,cT:'#FFCC80',cL:'#4E342E',cR:'#6D4C41'},
-  H3: {h:52,cT:'#FFF9C4',cL:'#37474F',cR:'#455A64'},
-  MK: {h:40,cT:'#FFAB40',cL:'#BF360C',cR:'#E64A19'},
-  SC: {h:48,cT:'#E3F2FD',cL:'#1565C0',cR:'#1976D2'},
-  LB: {h:52,cT:'#FFF9C4',cL:'#37474F',cR:'#546E7A'},
-  HT: {h:60,cT:'#BBDEFB',cL:'#0D47A1',cR:'#1565C0'},
-  CA: {h:80,cT:'#CFD8DC',cL:'#263238',cR:'#37474F'},
-  ZT: {h:72,cT:'#CE93D8',cL:'#4A148C',cR:'#6A1B9A'},
-  WH: {h:44,cT:'#FFD54F',cL:'#5D4037',cR:'#795548'},
-  WH: {h:48,cT:'#FFD54F',cL:'#5D4037',cR:'#795548'},
-  // Farms
-  FP1:{h:4, cT:'#8B6914',cL:'#5A3D08',cR:'#7A520F'},
-  FP2:{h:4, cT:'#7A5C10',cL:'#4E3508',cR:'#6B4C0E'},
-  FP3:{h:4, cT:'#6B4E0E',cL:'#422E06',cR:'#5C3E0A'},
-  // Factories (bigger, more industrial)
-  MILL:    {h:64,cT:'#B0BEC5',cL:'#37474F',cR:'#455A64', chimney:true},
-  BAKE:    {h:52,cT:'#FFCC80',cL:'#4E342E',cR:'#5D4037'},
-  DAIRY:   {h:56,cT:'#E8F5E9',cL:'#1B5E20',cR:'#2E7D32'},
-  TEXTILE: {h:60,cT:'#E1F5FE',cL:'#0D47A1',cR:'#1565C0'},
-  // Animals
-  CHK:{h:28,cT:'#FFCC80',cL:'#5D4037',cR:'#795548'},
-  COW:{h:36,cT:'#EFEBE9',cL:'#4E342E',cR:'#6D4C41'},
-  SHP:{h:32,cT:'#FAFAFA',cL:'#455A64',cR:'#607D8B'},
-  PIG:{h:28,cT:'#FFCCBC',cL:'#BF360C',cR:'#D84315'},
-  // Warehouse
-  WH: {h:48,cT:'#FFD54F',cL:'#5D4037',cR:'#795548', special:'warehouse'},
+  R:  {h:18, cT:'#9E9E9E',cL:'#424242',cR:'#616161'},
+  G:  {h:8,  cT:'#66BB6A',cL:'#2E7D32',cR:'#388E3C'},
+  T:  {h:0,  tree:true, scale:0.9},
+  T2: {h:0,  tree:true, scale:1.4},
+  FL: {h:10, cT:'#F48FB1',cL:'#AD1457',cR:'#C2185B'},
+  MU: {h:12, cT:'#FF7043',cL:'#BF360C',cR:'#E64A19'},
+  FO: {h:30, cT:'#81D4FA',cL:'#0277BD',cR:'#0288D1'},
+  LA: {h:36, cT:'#FFE082',cL:'#E65100',cR:'#EF6C00'},
+  SU: {h:18, cT:'#FFF176',cL:'#F9A825',cR:'#FBC02D'},
+  H1: {h:55, cT:'#FF8A65',cL:'#4E342E',cR:'#6D4C41', roof:true, roofC:'#D32F2F'},
+  H2: {h:70, cT:'#FFCC80',cL:'#4E342E',cR:'#6D4C41', roof:true, roofC:'#1565C0'},
+  H3: {h:85, cT:'#FFF9C4',cL:'#37474F',cR:'#455A64', roof:true, roofC:'#2E7D32'},
+  MK: {h:65, cT:'#FFAB40',cL:'#BF360C',cR:'#E64A19'},
+  SC: {h:75, cT:'#E3F2FD',cL:'#1565C0',cR:'#1976D2'},
+  LB: {h:80, cT:'#FFF9C4',cL:'#37474F',cR:'#546E7A'},
+  HT: {h:95, cT:'#BBDEFB',cL:'#0D47A1',cR:'#1565C0'},
+  CA: {h:120,cT:'#CFD8DC',cL:'#263238',cR:'#37474F'},
+  ZT: {h:110,cT:'#CE93D8',cL:'#4A148C',cR:'#6A1B9A'},
+  WH: {h:70, cT:'#FFD54F',cL:'#5D4037',cR:'#795548'},
+  FP1:{h:6,  cT:'#8D6E63',cL:'#4E342E',cR:'#6D4C41'},
+  FP2:{h:6,  cT:'#795548',cL:'#3E2723',cR:'#4E342E'},
+  FP3:{h:6,  cT:'#6D4C41',cL:'#3E2723',cR:'#4E342E'},
+  MILL:    {h:90, cT:'#B0BEC5',cL:'#37474F',cR:'#455A64', chimney:true},
+  BAKE:    {h:80, cT:'#FFCC80',cL:'#4E342E',cR:'#5D4037'},
+  DAIRY:   {h:85, cT:'#E8F5E9',cL:'#1B5E20',cR:'#2E7D32'},
+  TEXTILE: {h:90, cT:'#E1F5FE',cL:'#0D47A1',cR:'#1565C0'},
+  CHK:{h:45, cT:'#FFCC80',cL:'#5D4037',cR:'#795548'},
+  COW:{h:55, cT:'#EFEBE9',cL:'#4E342E',cR:'#6D4C41'},
+  SHP:{h:50, cT:'#FAFAFA',cL:'#455A64',cR:'#607D8B'},
+  PIG:{h:45, cT:'#FFCCBC',cL:'#BF360C',cR:'#D84315'},
 };
 
 // ---- Draw detailed building ----
@@ -1039,17 +2104,27 @@ function drawBuilding(ctx,sx,sy,bId,bd){
   var cat=bd?bd.cat:'bldg';
   var z=ISO.zoom;
 
-  if(cat==='bldg'&&z>0.5){
-    // Windows on right face
-    var wr=app.cR;
-    var winY=sy+th-bh*z+bh*z*0.3;
-    var winX=sx+tw*.25;
-    ctx.fillStyle='rgba(200,235,255,0.6)';
-    ctx.fillRect(winX-4*z,winY,7*z,5*z);
-    ctx.fillRect(winX+8*z,winY,7*z,5*z);
+  if(cat==='bldg'&&z>0.35){
+    // Windows - multiple on right face
+    var winBaseY=sy+th-bh*z+bh*z*0.25;
+    var winSz=Math.max(3,6*z);
+    ctx.fillStyle='rgba(200,235,255,0.7)';
+    for(var wi=0;wi<3;wi++){
+      ctx.fillRect(sx+tw*.08+wi*winSz*1.8,winBaseY,winSz,winSz*.8);
+    }
     // Door
-    ctx.fillStyle='rgba(80,40,10,0.8)';
-    ctx.fillRect(sx-5*z,sy+th-8*z,10*z,8*z);
+    ctx.fillStyle='rgba(60,30,5,0.85)';
+    ctx.fillRect(sx-winSz*.6,sy+th-winSz*2,winSz*1.2,winSz*2);
+    // Roof triangle if applicable
+    if(app.roof&&z>0.4){
+      ctx.beginPath();
+      ctx.moveTo(sx-tw/2,sy+th-bh*z);
+      ctx.lineTo(sx,sy+th-bh*z-18*z);
+      ctx.lineTo(sx+tw/2,sy+th-bh*z);
+      ctx.closePath();
+      ctx.fillStyle=app.roofC||'#D32F2F';ctx.fill();
+      ctx.strokeStyle='rgba(0,0,0,.2)';ctx.lineWidth=0.8;ctx.stroke();
+    }
   }
 
   if(app.chimney&&z>0.4){
@@ -1072,22 +2147,27 @@ function drawBuilding(ctx,sx,sy,bId,bd){
     ctx.stroke();
   }
 
-  // Emoji label on top
-  if(z>0.45&&bd){
+  // Big emoji on building face (front/top)
+  if(z>0.3&&bd){
     var em=bd.e||'?';
-    ctx.font=(14*z)+'px serif';
+    var esz=Math.max(14,22*z);
+    ctx.font=esz+'px serif';
     ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(em.charAt(0),sx,sy+th-bh*z-2*z);
+    // Shadow
+    ctx.fillStyle='rgba(0,0,0,0.3)';
+    ctx.fillText(em.charAt(0),sx+1*z,sy+th-bh*z*0.5+1*z);
+    ctx.fillStyle='rgba(255,255,255,0.95)';
+    ctx.fillText(em.charAt(0),sx,sy+th-bh*z*0.5);
   }
-  // Name label
-  if(z>0.65&&bd){
-    var lsz=Math.max(7,9*z);
+  // Name label below building
+  if(z>0.5&&bd){
+    var lsz=Math.max(8,10*z);
     ctx.font='bold '+lsz+'px system-ui,sans-serif';
     ctx.textAlign='center';ctx.textBaseline='top';
-    ctx.strokeStyle='rgba(0,0,0,0.6)';ctx.lineWidth=2;
-    ctx.strokeText(bd.n,sx,sy+th+2*z);
+    ctx.strokeStyle='rgba(0,0,0,0.75)';ctx.lineWidth=3;
+    ctx.strokeText(bd.n,sx,sy+th+3*z);
     ctx.fillStyle='#fff';
-    ctx.fillText(bd.n,sx,sy+th+2*z);
+    ctx.fillText(bd.n,sx,sy+th+3*z);
   }
 }
 
@@ -1141,10 +2221,35 @@ function renderISO(){
   var tw=ISO.TW*ISO.zoom,th=ISO.TH*ISO.zoom;
   var now=Date.now();
 
-  // Sky
-  var grad=ctx.createLinearGradient(0,0,0,H*.6);
-  grad.addColorStop(0,'#6EC6F0');grad.addColorStop(1,'#A5D6A7');
-  ctx.fillStyle=grad;ctx.fillRect(0,0,W,H);
+  // Sky - varies by time of day
+  var hr=new Date().getHours();
+  var isDawn=hr>=5&&hr<7, isDay=hr>=7&&hr<18, isDusk=hr>=18&&hr<21, isNight=hr>=21||hr<5;
+  var skyGrad=ctx.createLinearGradient(0,0,0,H*.65);
+  if(isNight){skyGrad.addColorStop(0,'#0D1B2A');skyGrad.addColorStop(1,'#1A2E4A')}
+  else if(isDawn||isDusk){skyGrad.addColorStop(0,'#FF6B35');skyGrad.addColorStop(1,'#FFD54F')}
+  else{skyGrad.addColorStop(0,'#6EC6F0');skyGrad.addColorStop(1,'#A5D6A7')}
+  ctx.fillStyle=skyGrad;ctx.fillRect(0,0,W,H);
+  // Clouds (day only)
+  if(isDay||isDawn){
+    ctx.save();ctx.globalAlpha=0.6;ctx.fillStyle='#fff';
+    [[W*.2,H*.08,30],[W*.6,H*.05,22],[W*.85,H*.1,18]].forEach(function(c){
+      ctx.beginPath();ctx.arc(c[0],c[1],c[2],0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(c[0]+c[2]*.6,c[1]+3,c[2]*.7,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(c[0]-c[2]*.5,c[1]+2,c[2]*.65,0,Math.PI*2);ctx.fill();
+    });
+    ctx.restore();
+  }
+  // Stars (night)
+  if(isNight){
+    ctx.save();ctx.fillStyle='#fff';
+    for(var si=0;si<30;si++){
+      var sx2=(Math.sin(si*137.5*Math.PI/180)+1)/2*W;
+      var sy2=(Math.cos(si*97.3*Math.PI/180)+1)/2*H*.5;
+      ctx.globalAlpha=0.5+Math.sin(Date.now()/600+si)*0.3;
+      ctx.beginPath();ctx.arc(sx2,sy2,1.5,0,Math.PI*2);ctx.fill();
+    }
+    ctx.restore();
+  }
 
   // Build render list: border + interior, sorted back-to-front
   var cells=[];
@@ -1176,6 +2281,8 @@ function renderISO(){
     drawGround(ctx,sx,sy,col,row);
 
     if(!bd)return;
+    // Skip _PART_ cells (part of multi-tile, drawn by anchor)
+    if(bId && bId.indexOf('_PART_') > 0) return;
 
     // Farm: draw soil + crop state
     if(bd.cat==='farm'){
@@ -1188,8 +2295,12 @@ function renderISO(){
       return;
     }
 
-    // Building
-    drawBuilding(ctx,sx,sy,bId,bd);
+    // Route to appropriate renderer
+    if(bd.cat==='deco'){
+      drawDeco(ctx,sx,sy,bId,bd,ISO.zoom);
+    } else {
+      drawIsoBuilding(ctx,sx,sy,bId,bd,ISO.zoom);
+    }
 
     // Ready dot
     var dot=false;
@@ -1205,6 +2316,24 @@ function renderISO(){
     }
   });
 
+  // Villagers - little characters walking around (only during day)
+  if(!S.edit&&isDay){
+    var vills=[{id:0,e:'🧒'},{id:1,e:'👦'},{id:2,e:'👧'}];
+    ctx.save();
+    vills.forEach(function(v){
+      var t=Date.now()/3000+v.id*2.1;
+      var vc=Math.floor(vis*.3+Math.sin(t)*vis*.25);
+      var vr=Math.floor(vis*.5+Math.cos(t*0.7)*vis*.2);
+      vc=Math.max(0,Math.min(vis-1,vc));
+      vr=Math.max(0,Math.min(vis-1,vr));
+      if(p.town[vr*MSZ+vc])return; // don't draw on buildings
+      var vsc=i2s(vc,vr);
+      ctx.font=(14*ISO.zoom)+'px serif';
+      ctx.textAlign='center';ctx.textBaseline='bottom';
+      ctx.fillText(v.e,vsc.x,vsc.y+ISO.TH*ISO.zoom);
+    });
+    ctx.restore();
+  }
   // Edit mode: show placement grid
   if(S.edit){
     cells.forEach(function(cell){
@@ -1237,7 +2366,7 @@ function setupISO(){
   var vis=Math.min(MSZ,(S.p&&S.p.landSize)||20);
   ISO.offX=cv.width/2;
   ISO.offY=cv.height*.15;
-  ISO.zoom=Math.min(1.2,cv.width/(vis*ISO.TW*.9));
+  ISO.zoom=Math.min(0.9,cv.width/(vis*ISO.TW*.9));
   cv.addEventListener('mousedown',_iDown);
   cv.addEventListener('mousemove',_iMove);
   cv.addEventListener('mouseup',_iUp);
@@ -1301,7 +2430,7 @@ function isoCtr(){
   var cv=ISO.canvas;if(!cv)return;
   var vis=Math.min(MSZ,(S.p&&S.p.landSize)||20);
   ISO.offX=cv.width/2;ISO.offY=cv.height*.15;
-  ISO.zoom=Math.min(1.2,cv.width/(vis*ISO.TW*.9));renderISO();
+  ISO.zoom=Math.min(0.9,cv.width/(vis*ISO.TW*.9));renderISO();
 }
 
 
@@ -1429,6 +2558,16 @@ async function doLogin(){
   while(p.town.length<MSZ*MSZ)p.town.push(null);
   if(p.lastDay!==today()){p.coins+=20;p.totalCE=(p.totalCE||0)+20;p.lastDay=today();p.loginDays=(p.loginDays||0)+1}
   if(!p.orders||p.orders.length<1)genOrders();
+  // Daily quest
+  if(!p.dailyQuest||p.dailyQuest.day!==today()){
+    var quests=[
+      {type:'quiz',desc:'完成一次答題',reward:50,done:false},
+      {type:'order',desc:'完成2個訂單',target:2,progress:0,reward:80,done:false},
+      {type:'harvest',desc:'收穫3次農作物',target:3,progress:0,reward:60,done:false},
+      {type:'coins',desc:'賺取100金幣',target:100,progress:0,reward:40,done:false},
+    ];
+    p.dailyQuest={day:today(),quest:quests[Math.floor(Math.random()*quests.length)],done:false};
+  }
   S.p=p;await saveP();startTick();go('home')
 }
 function rHome(){
@@ -1436,9 +2575,34 @@ function rHome(){
   var a=app();a.innerHTML='';
   a.appendChild(tbH());
   var pg=mkDiv('PG FADE');
+  // Daily quest widget
+  var dqDiv = (function(){
+    var d=mkDiv('');
+    if(S.p.dailyQuest){
+      var q=S.p.dailyQuest.quest,done=S.p.dailyQuest.done;
+      var pct=q.target?Math.min(100,Math.round((q.progress||0)/q.target*100)):( done?100:0);
+      d.style.cssText='background:'+(done?'linear-gradient(135deg,#2E7D32,#1B5E20)':'linear-gradient(135deg,#1565C0,#7B1FA2)')+';border-radius:14px;padding:11px 14px;color:#fff;cursor:pointer';
+      d.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:.7rem;opacity:.8">🎯 每日任務</div><div style="font-size:.7rem;font-weight:900;color:#FFD700">+🪙'+q.reward+'</div></div><div style="font-size:.8rem;font-weight:700;margin:4px 0">'+(done?'✅ 已完成！':q.desc)+'</div>'+(q.target?'<div style="background:rgba(255,255,255,.25);border-radius:3px;height:5px;overflow:hidden"><div style="background:#FFD700;height:100%;width:'+pct+'%;border-radius:3px"></div></div>':'');
+      d.addEventListener('click',function(){if(!done)toast('繼續加油！完成任務領 🪙'+q.reward)});
+    }
+    return d;
+  })();
   pg.innerHTML='<div class="HLB">📅 今日登入 +🪙20！歡迎 '+p.displayName+'！</div><div class="AG"><div class="AC" id="h-town"><div style="font-size:1.4rem;margin-bottom:4px">🏘</div><div style="font-size:.8rem;font-weight:700">我的小鎮</div><div style="font-size:.58rem;color:#9EA8B1;margin-top:2px">'+(rc>0?'📦'+rc+' 可收取':p.town.filter(Boolean).length+'棟建築')+'</div></div><div class="AC" id="h-farm"><div style="font-size:1.4rem;margin-bottom:4px">🌾</div><div style="font-size:.8rem;font-weight:700">農場 & 工廠</div><div style="font-size:.58rem;color:#9EA8B1;margin-top:2px">種作物・加工生產</div></div><div class="AC" id="h-ord"><div style="font-size:1.4rem;margin-bottom:4px">📋</div><div style="font-size:.8rem;font-weight:700">訂單</div><div style="font-size:.58rem;color:#9EA8B1;margin-top:2px">'+(ordRdy>0?ordRdy+'筆可完成！':(p.orders||[]).length+'個進行中')+'</div></div><div class="AC" id="h-quiz"><div style="font-size:1.4rem;margin-bottom:4px">📝</div><div style="font-size:.8rem;font-weight:700">做題賺金幣</div><div style="font-size:.58rem;color:#9EA8B1;margin-top:2px">×'+bst().toFixed(1)+' 魔法加成</div></div><div class="AC" id="h-shop"><div style="font-size:1.4rem;margin-bottom:4px">🏪</div><div style="font-size:.8rem;font-weight:700">商店</div><div style="font-size:.58rem;color:#9EA8B1;margin-top:2px">買建築・擴地</div></div><div class="AC" id="h-mg"><div style="font-size:1.4rem;margin-bottom:4px">🎮</div><div style="font-size:.8rem;font-weight:700">每日小遊戲</div><div style="font-size:.58rem;color:#9EA8B1;margin-top:2px">等級越高難度越大</div></div></div>';
+  // Quick news feed
+  var newsItems=[
+    '📢 農地已升級！可種植更多作物',
+    '🌤️ 今天天氣晴！小鎮居民心情好',
+    '📦 倉庫 '+warehouseUsed()+'/'+warehouseCap()+' 格，記得出售貨物！',
+    '💡 提示：選10分鐘限時可賺更多金幣！',
+    '🎯 今日目標：完成3個訂單！',
+    '⭐ 連續答對3題可獲得連答獎勵！',
+  ];
+  var newsDiv=mkDiv('');newsDiv.style.cssText='background:linear-gradient(135deg,#E8F5E9,#E3F2FD);border:1.5px solid #A5D6A7;border-radius:12px;padding:9px 12px;font-size:.72rem;color:#2E7D32;display:flex;align-items:center;gap:7px';
+  newsDiv.innerHTML='<span style="flex-shrink:0">📰</span><span>'+newsItems[Math.floor(Date.now()/30000)%newsItems.length]+'</span>';
+  pg.appendChild(newsDiv);
   var sb=document.createElement('button');sb.className='BTN B-WH BW';sb.style.padding='9px';sb.textContent='📊 我的紀錄';sb.addEventListener('click',function(){go('stats')});
   pg.appendChild(sb);
+  if(dqDiv.innerHTML)pg.insertBefore(dqDiv,pg.firstChild);
   a.appendChild(pg);
   a.appendChild(bnH('home'));
   var navMap={'h-town':'town','h-farm':'farm','h-ord':'orders','h-quiz':'quiz','h-shop':'shop','h-mg':'mghub'};
@@ -1519,8 +2683,19 @@ function rTown(){
 function cClick(idx,bId,bd){
   var p=S.p;
   // Placing mode
-  if(S.placing){if(!bId){placeB(idx)}else toast('此格已有建築');return}
-  if(!bId){return} // empty tile, nothing to do
+  if(S.placing){
+    if(!bId){placeB(idx)}
+    else toast('此格已有建築，請點空格');
+    return
+  }
+  if(!bId){return}
+  // Multi-tile PART cell - redirect to anchor
+  if(bId && bId.indexOf('_PART_')>0){
+    var anchorIdx=parseInt(bId.split('_PART_')[1]);
+    var realId=bId.split('_PART_')[0];
+    cClick(anchorIdx,realId,IT[realId]);
+    return;
+  }
   if(!bd)return;
   // Edit mode: tap building -> show move/remove popup immediately
   if(S.edit){
@@ -1617,6 +2792,7 @@ function placeB(idx){
   if(b&&b.cat==='animal')p.animalSlots[idx]={animal:b.animal,fed:false,ready:false};
   if(b&&b.cat==='factory')p.factories[idx]={queue:[]};
   if(!Object.keys(p.bldgInv).some(function(k){return p.bldgInv[k]>0}))S.placing=null;
+  checkAchievements('build',1);
   saveP();rTown()
 }
 function fClick(idx,bd){
@@ -1625,7 +2801,7 @@ function fClick(idx,bd){
   if(f.done&&f.crop){
     var cr=CR[f.crop];
     if(warehouseFull()){toast('⚠️ 倉庫已滿！先出售貨物');return}
-    addG(cr.gives,cr.amt);
+    if(!warehouseFull()){addG(cr.gives,cr.amt);checkDailyQuest('harvest',1);}
     toast('收穫 '+cr.e+' ×'+cr.amt+'！');
     f.done=false;f.crop=null;f.endTime=0;
     saveP();rTown();return
@@ -1724,8 +2900,21 @@ function showRem(idx,bd){
 }
 function remBldg(idx){
   var id=S.p.town[idx];if(!id)return;
-  S.p.town[idx]=null;S.p.bldgInv[id]=(S.p.bldgInv[id]||0)+1;
-  delete S.p.collect[idx];delete S.p.farms[idx];delete S.p.animalSlots[idx];delete S.p.factories[idx];
+  // Handle _PART_ cells - find anchor
+  if(id.indexOf('_PART_')>0){
+    var anchorIdx=parseInt(id.split('_PART_')[1]);
+    var realId=id.split('_PART_')[0];
+    removeMulti(anchorIdx,realId);
+    S.p.bldgInv[realId]=(S.p.bldgInv[realId]||0)+1;
+    delete S.p.collect[anchorIdx];delete S.p.factories[anchorIdx];delete S.p.animalSlots[anchorIdx];
+  } else if(MULTITILE[id]){
+    removeMulti(idx,id);
+    S.p.bldgInv[id]=(S.p.bldgInv[id]||0)+1;
+    delete S.p.collect[idx];delete S.p.factories[idx];delete S.p.animalSlots[idx];
+  } else {
+    S.p.town[idx]=null;S.p.bldgInv[id]=(S.p.bldgInv[id]||0)+1;
+    delete S.p.collect[idx];delete S.p.farms[idx];delete S.p.animalSlots[idx];delete S.p.factories[idx];
+  }
   saveP();rTown()
 }
 function rShop(){
@@ -1733,7 +2922,7 @@ function rShop(){
   var a=app();a.innerHTML='';a.appendChild(tbH());
   var wrap=document.createElement('div');wrap.style.cssText='display:flex;flex-direction:column;flex:1;overflow:hidden';
   var topBar=mkDiv('');topBar.style.cssText='padding:10px 14px 0;flex-shrink:0;background:#F0FAFB';
-  topBar.innerHTML='<div style="font-size:.76rem;color:#4A5568;margin-bottom:8px">現有 <strong style="color:#F59E0B">🪙 '+p.coins+'</strong></div>';
+  topBar.innerHTML=(function(){var today=new Date().getDay();var specials=['H1','FP1','CHK','T2','BAKE'];var sp=specials[today%specials.length];var sb=IT[sp];return'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-size:.76rem;color:#4A5568">現有 <strong style="color:#F59E0B">🪙 '+p.coins+'</strong></div>'+(sb?'<div style="background:#FFF3E0;border:1.5px solid #FFB300;border-radius:50px;padding:2px 10px;font-size:.65rem;font-weight:700;color:#E65100">🔥 今日推薦：'+sb.e+sb.n+'</div>':'')+'</div>'})();
   // Cat tabs
   var catDiv=mkDiv('SCATS');
   var cats=[['deco','🌳 裝飾'],['bldg','🏛 建築'],['farm','🌾 農場'],['factory','🏭 工廠'],['animal','🐄 動物']];
@@ -1745,6 +2934,29 @@ function rShop(){
   topBar.appendChild(catDiv);wrap.appendChild(topBar);
   var pg=mkDiv('PG');pg.style.paddingTop='10px';
   // Sell section
+  // Mystery Box
+  if(S.scat==='bldg'){
+    var mbox=mkDiv('CARD');mbox.style.cssText='background:linear-gradient(135deg,#7B1FA2,#1565C0);cursor:pointer;text-align:center;padding:16px';
+    var mbcost=100+S.p.level*20;
+    mbox.innerHTML='<div style="font-size:2rem">🎁</div><div style="font-size:.88rem;font-weight:900;color:#fff;margin-top:4px">神秘寶箱</div><div style="font-size:.68rem;color:rgba(255,255,255,.8);margin-top:3px">花費 🪙'+mbcost+' 隨機獲得建築或道具</div>';
+    mbox.addEventListener('click',function(){
+      if(S.p.coins<mbcost){toast('金幣不足！');return}
+      S.p.coins-=mbcost;
+      var prizes=Object.values(IT).filter(function(it){return it.cat!=='bldg'||!it.lv||S.p.level>=it.lv-2});
+      var prize=prizes[Math.floor(Math.random()*prizes.length)];
+      S.p.bldgInv[prize.id]=(S.p.bldgInv[prize.id]||0)+1;
+      saveP();
+      // Big popup animation
+      var ov=document.createElement('div');ov.className='POPUP';
+      var box2=mkDiv('PBX');box2.style.cssText='text-align:center;padding:28px 20px';
+      box2.innerHTML='<div style="font-size:4rem;animation:pop .4s ease">'+prize.e+'</div><div style="font-size:1.2rem;font-weight:900;margin-top:10px">獲得 '+prize.n+'！</div><div style="font-size:.78rem;color:#9EA8B1;margin-top:6px">已加入庫存</div>';
+      var cl2=document.createElement('button');cl2.className='BTN B-GR BW';cl2.style.marginTop='16px';cl2.textContent='太棒了！';cl2.addEventListener('click',function(){ov.remove();rShop()});
+      box2.appendChild(cl2);ov.appendChild(box2);
+      ov.addEventListener('click',function(e){if(e.target===ov){ov.remove();rShop()}});
+      document.body.appendChild(ov);
+    });
+    pg.appendChild(mbox);
+  }
   if(S.scat==='deco'){
     var goods=Object.keys(p.inv).filter(function(id){return p.inv[id]>0&&GD[id]});
     if(goods.length>0){
@@ -1853,6 +3065,16 @@ function rFac(){
 function rOrd(){
   var p=S.p,a=app();a.innerHTML='';a.appendChild(tbH());
   if(!p.orders||p.orders.length<1)genOrders();
+  // Daily quest
+  if(!p.dailyQuest||p.dailyQuest.day!==today()){
+    var quests=[
+      {type:'quiz',desc:'完成一次答題',reward:50,done:false},
+      {type:'order',desc:'完成2個訂單',target:2,progress:0,reward:80,done:false},
+      {type:'harvest',desc:'收穫3次農作物',target:3,progress:0,reward:60,done:false},
+      {type:'coins',desc:'賺取100金幣',target:100,progress:0,reward:40,done:false},
+    ];
+    p.dailyQuest={day:today(),quest:quests[Math.floor(Math.random()*quests.length)],done:false};
+  }
   var pg=mkDiv('PG FADE');pg.innerHTML='<div style="font-size:.82rem;font-weight:700">📋 訂單板</div><div style="font-size:.7rem;color:#9EA8B1">完成訂單獲得金幣和EXP！</div>';
   p.orders.forEach(function(ord,oi){
     var can=canFul(ord);
@@ -1915,138 +3137,425 @@ function rQuiz(){
   tog.addEventListener('click',function(){S.p.settings.hw=!S.p.settings.hw;if(S.p.settings.hw)initOCR();hwDiv.style.background=S.p.settings.hw?'#F0FFF4':'#FFF8F0';tog.className='TOG'+(S.p.settings.hw?' ON':'')});
   pg.appendChild(hwDiv);
   // Estimate
-  var est=mkDiv('CARD');est.style.cssText='background:#FFFDE7;border-color:#FFE082';est.innerHTML='<div style="font-size:.68rem;color:#795548">預估可賺</div><div style="font-size:1.6rem;font-weight:900;color:#F59E0B;margin-top:3px">🪙 '+Math.round(200*gm)+' ~ '+Math.round(420*gm)+'</div><div style="font-size:.62rem;color:#888;margin-top:2px">⚠️ 0 題答對 = 0 金幣</div>';pg.appendChild(est);
-  var sb=document.createElement('button');sb.className='BTN B-OR BW';sb.style.cssText='font-size:1rem;font-weight:900;padding:15px';sb.textContent='⚔️ 開始！';sb.addEventListener('click',startQ);pg.appendChild(sb);
+  var est=mkDiv('CARD');est.style.cssText='background:#FFFDE7;border-color:#FFE082';est.innerHTML='<div style="font-size:.68rem;color:#795548">預估可賺</div><div style="font-size:1.6rem;font-weight:900;color:#F59E0B;margin-top:3px">🪙 '+Math.round(200*gm*timeMul())+' ~ '+Math.round(420*gm*timeMul())+'</div><div style="font-size:.62rem;color:#888;margin-top:2px">⏱ 時限越短倍率越高：10分×1.5 / 20分×1.2 / 30分×1.0 / 40分×0.8</div>';pg.appendChild(est);
+  var motivates=['加油！你可以的 💪','今天多賺一點金幣！🪙','挑戰自己！⭐','認真作答得更多 🏆'];
+  var mvDiv=mkDiv('');mvDiv.style.cssText='text-align:center;font-size:.78rem;color:#FF6B35;font-weight:700;padding:4px';
+  mvDiv.textContent=motivates[Math.floor(Math.random()*motivates.length)];pg.appendChild(mvDiv);
+  var sb=document.createElement('button');sb.className='BTN B-OR BW';sb.style.cssText='font-size:1.05rem;font-weight:900;padding:16px';sb.textContent='⚔️ 開始！';sb.addEventListener('click',startQ);pg.appendChild(sb);
   a.appendChild(pg);a.appendChild(bnH('quiz'));
+}
+function timeMul(){
+  // Shorter time limit = harder = more coins per question
+  if(S.tl<=10)return 1.5;
+  if(S.tl<=20)return 1.2;
+  if(S.tl<=30)return 1.0;
+  return 0.8; // 40 min
 }
 function startQ(){var n=(S.mode==='ck'||S.mode==='99')?10:20;S.qs=makeQs(S.mode,S.grade,n);S.qi=0;S.qAns=[];S.streak=0;S.maxStreak=0;S.earned=0;S.t=S.tl*60;S.sc='quizrun';rQ();startTimer()}
 function rQ(){
-  var q=S.qs[S.qi],n=S.qs.length,m=getMD(S.mode),gm=getGRS(S.grade).m*bst(),bp=Math.round(10*gm);
+  var q=S.qs[S.qi],n=S.qs.length,m=getMD(S.mode);
   var a=app();a.innerHTML='';
-  // Header
+  // Header - no coin count, just progress
   var hdr=mkDiv('QHDR');
-  hdr.innerHTML='<div><div style="font-size:.7rem;font-weight:700;color:#fff">'+m.n+'</div><div style="font-size:.58rem;color:rgba(255,255,255,.75)">'+(S.qi+1)+'/'+n+'</div></div><div class="QTMR'+(S.t<=30?' URG':'')+'" id="QT">'+fmt(S.t)+'</div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px"><div style="font-size:.88rem;font-weight:900;color:#FFD700">🪙'+S.earned+'</div></div>';
-  var exitBtn=document.createElement('button');exitBtn.style.cssText='background:rgba(255,255,255,.2);border:none;color:#fff;font-size:.58rem;padding:2px 8px;border-radius:50px;cursor:pointer';exitBtn.textContent='退出批改';exitBtn.addEventListener('click',exitQ);hdr.querySelector('div:last-child').appendChild(exitBtn);
+  hdr.innerHTML='<div><div style="font-size:.75rem;font-weight:700;color:#fff">'+m.n+'</div></div>'+
+    '<div style="font-size:.72rem;color:rgba(255,255,255,.9);font-weight:700">'+(S.qi+1)+'/'+n+'</div>'+
+    '<div class="QTMR'+(S.t<=30?' URG':'')+'" id="QT">'+fmt(S.t)+'</div>';
+  var exitBtn=document.createElement('button');
+  exitBtn.style.cssText='background:rgba(255,255,255,.2);border:none;color:#fff;font-size:.65rem;padding:3px 10px;border-radius:50px;cursor:pointer';
+  exitBtn.textContent='結束';
+  exitBtn.addEventListener('click',exitQ);
+  hdr.appendChild(exitBtn);
   a.appendChild(hdr);
-  var pbar=mkDiv('');pbar.style.cssText='height:4px;background:rgba(255,255,255,.3);margin:0 14px;border-radius:2px;overflow:hidden';pbar.innerHTML='<div style="height:100%;background:#FFD700;width:'+Math.round(S.qi/n*100)+'%"></div>';a.appendChild(pbar);
-  var body=mkDiv('');body.style.cssText='flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:11px;background:#F0FAFB';
+  // Progress bar
+  var pbar=mkDiv('');pbar.style.cssText='height:5px;background:rgba(255,255,255,.25);overflow:hidden';
+  pbar.innerHTML='<div style="height:100%;background:#FFD700;width:'+Math.round(S.qi/n*100)+'%;transition:width .3s"></div>';
+  a.appendChild(pbar);
+  // Body
+  var body=mkDiv('');body.style.cssText='flex:1;overflow-y:auto;padding:16px 14px;display:flex;flex-direction:column;gap:12px;background:#F7FBFF';
   // Question
-  if(q.isClock){var cDiv=mkDiv('');cDiv.style.cssText='display:flex;justify-content:center';cDiv.innerHTML=clockSVG(q.h,q.m)+'<div style="font-size:.7rem;color:#9EA8B1;text-align:center;margin-top:3px">時間格式: 3:30</div>';body.appendChild(cDiv)}
-  else{var qDiv=mkDiv('QEXPR');qDiv.textContent=q.q+' = ?';body.appendChild(qDiv)}
-  // Input
-  var useHW=S.p.settings.hw&&getKey();
-  if(useHW){
-    var cvWrap=mkDiv('CVWRAP');cvWrap.innerHTML='<canvas id="CC" width="448" height="120" style="display:block;width:100%;touch-action:none"></canvas>';body.appendChild(cvWrap);
-    var cvBtns=mkDiv('CVBTNS');
-    [['✏️ 筆','pen'],['🖊 橡皮','eraser'],['↩ 返回',null],['🗑 清除',null]].forEach(function(bt){var b=document.createElement('button');b.className='CVBTN'+(S.tool===bt[1]?' ACT':'');b.textContent=bt[0];b.addEventListener('click',function(){if(bt[1]){S.tool=bt[1];b.className='CVBTN ACT';cvBtns.querySelectorAll('.CVBTN').forEach(function(x){if(x!==b)x.className='CVBTN'})}else if(bt[0].includes('返回'))undoSt();else clrCv()});cvBtns.appendChild(b)});
-    body.appendChild(cvBtns);
-    var subBtn=document.createElement('button');subBtn.id='SUB';subBtn.className='BTN B-GR BW';subBtn.style.cssText='margin-top:8px;padding:12px;font-size:.9rem;font-weight:900';subBtn.textContent='✓ 確認手寫';subBtn.addEventListener('click',submitHW);body.appendChild(subBtn);
-    var ocrDiv=mkDiv('');ocrDiv.id='OCR';ocrDiv.style.cssText='font-size:.7rem;color:#9EA8B1;text-align:center;margin-top:5px;min-height:16px';body.appendChild(ocrDiv);
-    setTimeout(initCv,50);
+  if(q.isClock){
+    var cDiv=mkDiv('');cDiv.style.cssText='display:flex;flex-direction:column;align-items:center;gap:6px';
+    cDiv.innerHTML=clockSVG(q.h,q.m)+'<div style="font-size:.7rem;color:#9EA8B1">請輸入時間（例：3:30）</div>';
+    body.appendChild(cDiv);
   } else {
-    var inp=document.createElement('input');inp.type='text';inp.inputMode=q.isClock?'text':'numeric';inp.className='KBINP';inp.id='ANS';inp.placeholder=q.isClock?'例：3:30':'答案';inp.autocomplete='off';inp.addEventListener('keydown',function(e){if(e.key==='Enter')submitAns()});body.appendChild(inp);
-    var confBtn=document.createElement('button');confBtn.id='CONF-BTN';confBtn.className='BTN B-GR BW';confBtn.style.cssText='padding:13px;font-size:.95rem;font-weight:900;margin-top:9px';confBtn.textContent='✓ 確認答案';confBtn.addEventListener('click',submitAns);body.appendChild(confBtn);
-    setTimeout(function(){inp.focus()},100);
+    var qDiv=mkDiv('');
+    qDiv.style.cssText='background:#fff;border-radius:16px;padding:20px;text-align:center;font-size:2.2rem;font-weight:900;color:#1B2631;border:2px solid #E8F5E9;box-shadow:0 2px 8px rgba(0,0,0,.06)';
+    qDiv.textContent=q.q+' = ?';
+    body.appendChild(qDiv);
   }
-  // Streak
-  var sdiv=mkDiv('');sdiv.style.cssText='display:flex;align-items:center;gap:7px';sdiv.innerHTML='<span>🔥</span><span style="font-size:.9rem;font-weight:900;color:#FF6B35">'+S.streak+'</span><div style="flex:1">';var sdots='';for(var i=0;i<10;i++)sdots+='<span class="SD'+(i<S.streak?' LIT':'')+'"></span>';sdiv.querySelector('div').innerHTML=sdots;body.appendChild(sdiv);
-  var clDiv=mkDiv('CL');clDiv.innerHTML='<span style="font-size:.7rem;color:#7B5E00">💰 每題 ×'+bst().toFixed(1)+'</span><span style="font-size:.9rem;font-weight:900;color:#F59E0B">🪙'+bp+'</span>';body.appendChild(clDiv);
-  // Feedback area
-  var fbDiv=document.createElement('div');fbDiv.id='FEEDBACK';fbDiv.style.cssText='text-align:center;font-size:.95rem;min-height:32px;display:flex;align-items:center;justify-content:center';body.appendChild(fbDiv);
-  // Answer reveal area (only shown after wrong)
-  var ansDiv=document.createElement('div');ansDiv.id='ANS-SHOW';ansDiv.style.display='none';body.appendChild(ansDiv);
-  a.appendChild(body);S.QS=Date.now();
+  // Input area
+  var useHW=S.p.settings.hw;
+  if(useHW){
+    // ── Numpad (primary) ──
+    var padState={val:''};
+    var padDisplay=document.createElement('div');
+    padDisplay.style.cssText='background:#1B2631;color:#FFD700;border-radius:14px;padding:14px;text-align:center;font-size:2.4rem;font-weight:900;min-height:68px;display:flex;align-items:center;justify-content:center;letter-spacing:.1em;margin-bottom:8px';
+    padDisplay.textContent='?';
+    body.appendChild(padDisplay);
+    function updatePad(){padDisplay.textContent=padState.val||'?';padDisplay.style.color=padState.val?'#FFD700':'#9EA8B1';}
+    var padGrid=document.createElement('div');
+    padGrid.style.cssText='display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px';
+    [1,2,3,4,5,6,7,8,9,'←',0,'✓'].forEach(function(k){
+      var kb=document.createElement('div');
+      var isOk=k==='✓',isDel=k==='←';
+      kb.style.cssText='border-radius:12px;padding:16px 8px;text-align:center;font-size:1.6rem;font-weight:900;cursor:pointer;user-select:none;-webkit-user-select:none;active:transform:scale(.93);transition:transform .08s;'+(isOk?'background:#4CAF50;color:#fff;':'isDel'?'background:#FFE082;color:#1B2631;':'background:#F0F4F8;color:#1B2631;');
+      if(isOk)kb.style.cssText+='background:#4CAF50;color:#fff;';
+      else if(isDel)kb.style.cssText+='background:#FFE082;color:#333;';
+      else kb.style.cssText+='background:#F0F4F8;color:#1B2631;';
+      kb.textContent=k;
+      kb.addEventListener('pointerdown',function(e){e.preventDefault();this.style.transform='scale(.92)';this.style.opacity='.8'});
+      kb.addEventListener('pointerup',function(e){this.style.transform='';this.style.opacity='1';
+        if(isDel){padState.val=padState.val.slice(0,-1);}
+        else if(isOk){
+          if(!padState.val){padDisplay.style.background='#5D1111';setTimeout(function(){padDisplay.style.background='';},300);return;}
+          S.qAns.push({val:padState.val,q:q});S.qi++;padState.val='';
+          if(S.qi>=S.qs.length){clrT();doFinalMark()}else rQ();
+        } else {
+          if(padState.val.length>=3)return;
+          padState.val+=String(k);
+        }
+        updatePad();
+      });
+      padGrid.appendChild(kb);
+    });
+    body.appendChild(padGrid);
+    // ── Canvas (optional, writes here and auto-fills numpad) ──
+    var cvToggle=document.createElement('button');
+    cvToggle.style.cssText='width:100%;padding:9px;background:#E3F2FD;border:1.5px solid #90CAF9;border-radius:10px;font-size:.8rem;font-weight:700;cursor:pointer;font-family:inherit;color:#1565C0;margin-bottom:4px';
+    cvToggle.textContent='✏️ 展開手寫區（輔助）';
+    var cvArea=document.createElement('div');cvArea.style.display='none';
+    var cvWrap=mkDiv('CVWRAP');cvWrap.innerHTML='<canvas id="CC" width="448" height="140" style="display:block;width:100%;touch-action:none;cursor:crosshair;border-radius:10px"></canvas>';
+    var cvBtns2=mkDiv('');cvBtns2.style.cssText='display:flex;gap:6px;margin-top:4px';
+    var clrBtn2=document.createElement('button');clrBtn2.className='BTN B-WH';clrBtn2.style.cssText='flex:1;padding:7px;font-size:.78rem';clrBtn2.textContent='🗑 清除';clrBtn2.addEventListener('click',function(){clrCv();document.getElementById('hw-prev').textContent='寫完後自動辨識…'});
+    var recBtn=document.createElement('button');recBtn.style.cssText='flex:2;padding:7px;background:#1976D2;color:#fff;border:none;border-radius:50px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:inherit';recBtn.textContent='🔍 辨識並填入';
+    recBtn.addEventListener('click',async function(){
+      if(!S.strokes||!S.strokes.length){toast('請先寫字！');return}
+      recBtn.disabled=true;recBtn.textContent='辨識中…';
+      var res=await recognizeHW(q.isClock);
+      recBtn.disabled=false;recBtn.textContent='🔍 辨識並填入';
+      if(res){padState.val=res;updatePad();document.getElementById('hw-prev').textContent='✅ 辨識：'+res+' （請確認後按 ✓）';}
+      else{document.getElementById('hw-prev').textContent='⚠️ 辨識失敗，請直接按數字';}
+    });
+    cvBtns2.appendChild(clrBtn2);cvBtns2.appendChild(recBtn);
+    var hwPrev=document.createElement('div');hwPrev.id='hw-prev';hwPrev.style.cssText='font-size:.72rem;color:#9EA8B1;text-align:center;margin-top:4px;min-height:16px';hwPrev.textContent='寫完後按「辨識並填入」';
+    cvArea.appendChild(cvWrap);cvArea.appendChild(cvBtns2);cvArea.appendChild(hwPrev);
+    var cvOpen=false;
+    cvToggle.addEventListener('click',function(){
+      cvOpen=!cvOpen;cvArea.style.display=cvOpen?'block':'none';
+      cvToggle.textContent=cvOpen?'✏️ 收起手寫區':'✏️ 展開手寫區（輔助）';
+      if(cvOpen)setTimeout(initCv,50);
+    });
+    body.appendChild(cvToggle);body.appendChild(cvArea);
+    // Skip / switch
+    var hwExtraRow=mkDiv('');hwExtraRow.style.cssText='display:flex;gap:8px;margin-top:4px';
+    var hwSkip=document.createElement('button');hwSkip.className='BTN B-WH';hwSkip.style.cssText='flex:1;padding:9px;font-size:.78rem';hwSkip.textContent='⏭ 跳過';
+    hwSkip.addEventListener('click',function(){S.qAns.push({val:'',q:q});S.qi++;if(S.qi>=S.qs.length){clrT();doFinalMark()}else rQ()});
+    var hwKb=document.createElement('button');hwKb.className='BTN B-WH';hwKb.style.cssText='flex:1;padding:9px;font-size:.78rem';hwKb.textContent='⌨ 只用鍵盤';
+    hwKb.addEventListener('click',function(){S.p.settings.hw=false;rQ()});
+    hwExtraRow.appendChild(hwSkip);hwExtraRow.appendChild(hwKb);body.appendChild(hwExtraRow);
+  } else {
+    var inp=document.createElement('input');
+    inp.type='text';inp.inputMode=q.isClock?'text':'numeric';
+    inp.className='KBINP';inp.id='ANS';
+    inp.placeholder=q.isClock?'例：3:30':'在這裡寫答案';
+    inp.autocomplete='off';inp.style.fontSize='2rem';
+    inp.addEventListener('keydown',function(e){if(e.key==='Enter')nextQNoMark()});
+    body.appendChild(inp);
+    var nextBtn=document.createElement('button');
+    nextBtn.id='CONF-BTN';nextBtn.className='BTN B-GR BW';
+    nextBtn.style.cssText='padding:14px;font-size:1rem;font-weight:900;margin-top:4px';
+    nextBtn.textContent=S.qi===n-1?'✓ 完成作答':'→ 下一題';
+    nextBtn.addEventListener('click',nextQNoMark);
+    body.appendChild(nextBtn);
+    // Extra action row
+    var extraRow=mkDiv('');extraRow.style.cssText='display:flex;gap:8px;margin-top:4px';
+    var skipBtn=document.createElement('button');
+    skipBtn.className='BTN B-WH';skipBtn.style.cssText='flex:1;padding:9px;font-size:.78rem';
+    skipBtn.textContent='⏭ 跳過';
+    skipBtn.addEventListener('click',function(){
+      S.qAns.push({val:'',q:S.qs[S.qi]});S.qi++;
+      if(S.qi>=S.qs.length){clrT();doFinalMark()}else rQ();
+    });
+    extraRow.appendChild(skipBtn);
+    // Switch to handwriting button (only shown in keyboard mode)
+    var toHwBtn=document.createElement('button');
+    toHwBtn.className='BTN B-WH';toHwBtn.style.cssText='flex:1;padding:9px;font-size:.78rem';
+    toHwBtn.textContent='✏️ 改用手寫';
+    toHwBtn.addEventListener('click',function(){
+      S.p.settings.hw=true;
+      rQ();
+    });
+    extraRow.appendChild(toHwBtn);
+    var swBtn=document.createElement('button');
+    swBtn.className='BTN B-WH';swBtn.style.cssText='flex:1;padding:9px;font-size:.78rem';
+    swBtn.textContent='⌨ 改用鍵盤';
+    swBtn.addEventListener('click',function(){
+      // Simple toggle: flip mode and re-render this question (no qi advance)
+      S.p.settings.hw=false;
+      rQ();
+    });
+    extraRow.appendChild(swBtn);
+    body.appendChild(extraRow);
+    setTimeout(function(){inp.focus()},80);
+  }
+  a.appendChild(body);
+  S.QS=Date.now();
 }
-function exitQ(){while(S.qi<S.qs.length){S.qAns.push({ok:false,c:0});S.qi++}clrT();finishQ()}
-function submitAns(){
-  var inp=document.getElementById('ANS');if(!inp||inp.disabled)return;
-  var val=inp.value.trim();if(!val){toast('請先填寫答案！');return}
-  var q=S.qs[S.qi];var ok=checkAns(q,val);
-  inp.disabled=true;
-  if(ok)inp.classList.add('OK');else inp.classList.add('NG');
-  // Hide confirm button
-  var confBtn=document.getElementById('CONF-BTN');if(confBtn)confBtn.style.display='none';
-  procAns(ok,val);
+
+function nextQNoMark(){
+  // Just record the answer (don't mark yet), move to next
+  var inp=document.getElementById('ANS');
+  var val=inp?inp.value.trim():'';
+  var q=S.qs[S.qi];
+  S.qAns.push({val:val,q:q});
+  S.qi++;
+  if(S.qi>=S.qs.length){clrT();doFinalMark()}
+  else rQ();
 }
+
 async function submitHW(){
   var btn=document.getElementById('SUB');if(btn)btn.disabled=true;
-  var q=S.qs[S.qi],st=document.getElementById('OCR');if(st)st.textContent='AI 辨識中…';
-  var result=await recognizeHW(q.isClock);if(!result){if(btn)btn.disabled=false;return}
-  var ok=checkAns(q,result);if(st)st.textContent=(ok?'✓ 正確！':'✗ 正確：'+q.a)+' 辨識：'+result;procAns(ok,result)
+  var q=S.qs[S.qi],st=document.getElementById('OCR');
+  if(st)st.textContent='🔍 辨識中…';
+  var result=await recognizeHW(q.isClock);
+  if(!result){if(btn)btn.disabled=false;return}
+  if(st)st.textContent='辨識：'+result;
+  S.qAns.push({val:result,q:q});
+  S.qi++;
+  setTimeout(function(){
+    if(S.qi>=S.qs.length){clrT();doFinalMark()}else rQ();
+  },600);
 }
-function procAns(ok,val){
-  var q=S.qs[S.qi],gm=getGRS(S.grade).m*bst(),c=0;
-  // Show result feedback but let student self-mark
-  var feedbackEl=document.getElementById('FEEDBACK');
-  var ansEl=document.getElementById('ANS-SHOW');
-  if(ok){
-    S.streak++;if(S.streak>S.maxStreak)S.maxStreak=S.streak;
-    c=Math.round(10*gm);if(S.streak>=10)c+=25;else if(S.streak>=5)c+=10;else if(S.streak>=3)c+=5;
-    if((Date.now()-S.QS)<5000)c+=3;S.earned+=c;
-    if(feedbackEl){feedbackEl.textContent='✅ 答對了！';feedbackEl.style.color='#2E7D32';feedbackEl.style.background='#E8F5E9';feedbackEl.style.padding='8px 14px';feedbackEl.style.borderRadius='10px';feedbackEl.style.fontWeight='700'}
-    if(Math.random()<0.3){var dr=document.createElement('div');dr.className='DROP';dr.textContent=['🪙','🌾','🥚','🍅','🍞','🥕'][rnd(0,5)];dr.style.cssText='left:'+rnd(20,80)+'%;top:40%;position:fixed;';document.body.appendChild(dr);setTimeout(function(){dr.remove()},2100)}
-    var sb=document.getElementById('SUB')||document.getElementById('ANS');if(sb)floatC(sb,'+'+c+'🪙');
+
+function exitQ(){
+  // Fill remaining as blank
+  while(S.qi<S.qs.length){S.qAns.push({val:'',q:S.qs[S.qi]});S.qi++}
+  clrT();doFinalMark();
+}
+
+function doFinalMark(){
+  // Mark all answers
+  var gm=getGRS(S.grade).m*bst()*timeMul();
+  var cor=0;
+  S.qAns.forEach(function(item){
+    var ok=item.val?checkAns(item.q,item.val):false;
+    item.ok=ok;
+    if(ok){
+      cor++;item.c=Math.round(10*gm);
+      S.streak++;if(S.streak>S.maxStreak)S.maxStreak=S.streak;
+      if(S.streak>=10)item.c+=25;else if(S.streak>=5)item.c+=10;else if(S.streak>=3)item.c+=5;
+    } else {
+      item.c=0;S.streak=0;
+    }
+    S.earned+=item.c;
+  });
+  if(cor===0)S.earned=0;
+  S.p.coins+=S.earned;
+  S.p.totalC=(S.p.totalC||0)+cor;S.p.totalA=(S.p.totalA||0)+S.qAns.length;
+  S.p.totalCE=(S.p.totalCE||0)+S.earned;
+  if(S.maxStreak>(S.p.bestStreak||0))S.p.bestStreak=S.maxStreak;
+  S.p.exp+=cor*5;checkLv();
+  checkAchievements('quiz',1);
+  checkAchievements('streak',S.maxStreak);
+  if(cor===S.qAns.length&&cor>0)checkAchievements('perfect',1);
+  checkDailyQuest('quiz',1);
+  saveP();
+  rCorrectionPage();
+}
+
+// ---- Correction page - show wrong answers with correction boxes ----
+var S_corrections={}; // {qIdx: correctedVal}
+
+async function hwFillCorr(qi){
+  // Show mini canvas popup for handwriting on correction
+  var ov=document.createElement('div');ov.className='POPUP';
+  var box=document.createElement('div');box.className='PBX';
+  box.innerHTML='<div style="font-weight:700;margin-bottom:8px">✏️ 手寫訂正</div>';
+  var cw=document.createElement('div');cw.className='CVWRAP';
+  cw.innerHTML='<canvas id="CCcorr" width="320" height="120" style="display:block;width:100%;touch-action:none"></canvas>';
+  box.appendChild(cw);
+  var btns=document.createElement('div');btns.className='CVBTNS';
+  btns.innerHTML='<button class="CVBTN ACT" id="cwpen">✏️</button><button class="CVBTN" id="cweraser">🖊</button><button class="CVBTN" id="cwundo">↩</button><button class="CVBTN" id="cwclear">🗑</button>';
+  box.appendChild(btns);
+  var okBtn=document.createElement('button');okBtn.className='BTN B-GR BW';okBtn.style.cssText='padding:11px;font-size:.9rem;font-weight:900;margin-top:8px';okBtn.textContent='✓ 辨識並填入';
+  var st=document.createElement('div');st.style.cssText='font-size:.72rem;color:#9EA8B1;text-align:center;min-height:18px;margin-top:4px';
+  okBtn.addEventListener('click',async function(){
+    var cv2=document.getElementById('CCcorr');
+    var r=await recognizeLocal(false);
+    if(r){
+      var inp=document.getElementById('cor-'+qi);
+      if(inp)inp.value=r;
+      ov.remove();toast('填入：'+r);
+    }
+  });
+  box.appendChild(okBtn);box.appendChild(st);
+  var cl=document.createElement('button');cl.className='BTN B-WH BW';cl.style.cssText='padding:9px;font-size:.85rem;margin-top:6px';cl.textContent='取消';cl.addEventListener('click',function(){ov.remove()});
+  box.appendChild(cl);ov.appendChild(box);
+  ov.addEventListener('click',function(e){if(e.target===ov)ov.remove()});
+  document.body.appendChild(ov);
+  // Init canvas after mount
+  setTimeout(function(){
+    var cv2=document.getElementById('CCcorr');
+    if(!cv2)return;
+    // Swap ISO canvas temporarily
+    var oldCC=ISO.canvas;
+    // Direct draw init
+    var ctx2=cv2.getContext('2d');
+    ctx2.strokeStyle='#1B2631';ctx2.lineWidth=4;ctx2.lineCap='round';ctx2.lineJoin='round';
+    var drawing=false;
+    function gp2(e){var r=cv2.getBoundingClientRect(),s=e.touches?e.touches[0]:e;return{x:(s.clientX-r.left)*cv2.width/r.width,y:(s.clientY-r.top)*cv2.height/r.height}}
+    cv2.addEventListener('pointerdown',function(e){e.preventDefault();drawing=true;var p=gp2(e);ctx2.beginPath();ctx2.moveTo(p.x,p.y)},{passive:false});
+    cv2.addEventListener('pointermove',function(e){e.preventDefault();if(!drawing)return;var p=gp2(e);ctx2.lineTo(p.x,p.y);ctx2.stroke();ctx2.beginPath();ctx2.moveTo(p.x,p.y)},{passive:false});
+    cv2.addEventListener('pointerup',function(){drawing=false;ctx2.beginPath()});
+    document.getElementById('cwclear')?.addEventListener('click',function(){ctx2.clearRect(0,0,cv2.width,cv2.height)});
+    // Override recognizeLocal to use this canvas
+    st.textContent='請在上方寫下正確答案';
+    okBtn.onclick=async function(){
+      var r=await recognizeLocal2(cv2,false);
+      if(r){var inp=document.getElementById('cor-'+qi);if(inp)inp.value=r;ov.remove();toast('填入：'+r);}
+    };
+  },80);
+}
+
+async function recognizeLocal2(cv,isClock){
+  // Use a specific canvas for OCR
+  if(!OCR_READY){await initOCR();if(!OCR_READY)return null}
+  try{
+    var processed=preprocessCanvas(cv);
+    await OCR_WORKER.setParameters({tessedit_char_whitelist:'0123456789/:',tessedit_pageseg_mode:'7'});
+    var result=await OCR_WORKER.recognize(processed);
+    var txt=(result.data.text||'').trim().replace(/[^0-9:]/g,'');
+    var nums=txt.match(/\d+/g);
+    if(!nums||!nums.length)return null;
+    return nums.sort(function(a,b){return b.length-a.length})[0];
+  }catch(e){return null}
+}
+
+function rCorrectionPage(){
+  var n=S.qAns.length,cor=S.qAns.filter(function(x){return x.ok}).length;
+  var wrong=S.qAns.map(function(x,i){return{i:i,item:x}}).filter(function(x){return!x.item.ok});
+  var a=app();a.innerHTML='';
+  // Top summary bar
+  var top=mkDiv('');
+  top.style.cssText='background:linear-gradient(135deg,#1565C0,#7B1FA2);padding:16px 14px;flex-shrink:0;text-align:center';
+  var pct2=cor/n;
+  var stars=pct2===1?'🌟🌟🌟':pct2>=.8?'⭐⭐⭐':pct2>=.6?'⭐⭐':'⭐';
+  var msg=pct2===1?'完美！全部答對！🎉':pct2>=.8?'太棒了！💪':pct2>=.6?'不錯！繼續加油！':'繼續練習！你可以的！';
+  top.innerHTML='<div style="font-size:2.2rem;margin-bottom:4px">'+stars+'</div>'+
+    '<div style="color:#FFD700;font-size:1rem;font-weight:900;margin:3px 0">'+msg+'</div>'+
+    '<div style="color:#fff;font-size:.85rem;margin:3px 0">答對 '+cor+'/'+n+' 題，獲得 🪙'+S.earned+'</div>'+
+    (S.maxStreak>=5?'<div style="color:#FFD700;font-size:.78rem">🔥 最高連答 '+S.maxStreak+' 題！</div>':'')+
+    (wrong.length>0?'<div style="color:rgba(255,255,255,.75);font-size:.72rem;margin-top:4px">請訂正下方 '+wrong.length+' 題 → 每題 +🪙3</div>':'<div style="color:#FFD700;font-size:.82rem;font-weight:700">全部答對！🎊</div>');
+  a.appendChild(top);
+  var pg=mkDiv('PG');pg.style.background='#F7FBFF';
+  if(wrong.length===0){
+    // All correct - go to results
+    var rd=mkDiv('');rd.style.cssText='text-align:center;padding:20px';
+    rd.innerHTML='<div style="font-size:3rem">🎉</div><div style="font-size:1rem;font-weight:700;margin-top:8px">全部答對！太厲害了！</div>';
+    pg.appendChild(rd);
   } else {
-    S.streak=0;
-    // DON'T show answer automatically - student must tap to reveal
-    if(feedbackEl){feedbackEl.textContent='❌ 答錯了';feedbackEl.style.color='#C62828';feedbackEl.style.background='#FEEFEF';feedbackEl.style.padding='8px 14px';feedbackEl.style.borderRadius='10px';feedbackEl.style.fontWeight='700'}
-    if(ansEl){
-      ansEl.style.display='block';
-      ansEl.innerHTML='<button onclick="revealAns()" style="background:#FF6B35;color:#fff;border:none;border-radius:50px;padding:8px 18px;font-size:.85rem;font-weight:700;cursor:pointer;font-family:inherit">👁 查看答案</button>';
+    var lbl=mkDiv('');lbl.innerHTML='<div style="font-size:.8rem;font-weight:700;color:#4A5568;margin-bottom:4px">✏️ 請在空格訂正，訂正後點「一鍵檢查」</div>';
+    pg.appendChild(lbl);
+    wrong.forEach(function(w){
+      var qi=w.i,item=w.item,q=item.q;
+      var card=mkDiv('CARD');card.style.cssText='padding:12px;border-left:4px solid #EF4444';
+      var qText=q.isClock?('🕐 '+q.a+' (時鐘題)'):q.q+' = ?';
+      var wrong_ans=item.val||'（未作答）';
+      card.innerHTML='<div style="font-size:.9rem;font-weight:700;margin-bottom:6px">'+qText+'</div>'+
+        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
+          '<span style="font-size:.72rem;color:#EF4444;text-decoration:line-through">✗ '+wrong_ans+'</span>'+
+          '<span style="font-size:.72rem;color:#9EA8B1">→</span>'+
+          '<input type="text" inputmode="numeric" id="cor-'+qi+'" placeholder="訂正" '+
+            'style="border:2px solid #C8E6C9;border-radius:8px;padding:6px 10px;font-size:1rem;font-weight:700;width:90px;text-align:center;outline:none;font-family:inherit">'+
+          (S.p.settings.hw?'<button onclick="hwFillCorr('+qi+')" style="background:#9C27B0;color:#fff;border:none;border-radius:50px;padding:5px 10px;font-size:.75rem;font-weight:700;cursor:pointer;font-family:inherit">✏️</button>':'')+
+          '<button onclick="showCorrAns('+qi+')" id="ans-btn-'+qi+'" '+
+            'style="background:#FF9800;color:#fff;border:none;border-radius:50px;padding:5px 12px;font-size:.75rem;font-weight:700;cursor:pointer;font-family:inherit">👁 答案</button>'+
+        '</div>'+
+        '<div id="ans-reveal-'+qi+'" style="display:none;margin-top:6px;background:#FFF8E1;border-radius:8px;padding:6px 10px;font-size:1rem;font-weight:900;color:#1565C0">'+
+          (q.isClock?q.a:q.q+' = '+q.a)+
+        '</div>';
+      pg.appendChild(card);
+    });
+  }
+  // Check button
+  var checkBtn=document.createElement('button');
+  checkBtn.className='BTN B-SK BW';checkBtn.style.cssText='padding:14px;font-size:1rem;font-weight:900;margin-top:4px';
+  checkBtn.textContent=wrong.length>0?'✓ 一鍵批改訂正':'繼續';
+  checkBtn.addEventListener('click',function(){
+    if(wrong.length>0)checkCorrections(wrong);else rFinalResults();
+  });
+  pg.appendChild(checkBtn);
+  a.appendChild(pg);
+}
+
+function showCorrAns(qi){
+  var el=document.getElementById('ans-reveal-'+qi);
+  if(el)el.style.display=el.style.display==='none'?'block':'none';
+}
+
+function checkCorrections(wrong){
+  var bonus=0,allOk=true;
+  wrong.forEach(function(w){
+    var qi=w.i,q=w.item.q;
+    var inp=document.getElementById('cor-'+qi);
+    if(!inp)return;
+    var val=inp.value.trim();
+    var ok=val&&checkAns(q,val);
+    if(ok){bonus+=3;inp.style.border='2px solid #4CAF50';inp.style.background='#E8F5E9'}
+    else{allOk=false;inp.style.border='2px solid #EF4444';inp.style.background='#FEF2F2'}
+  });
+  if(bonus>0){
+    S.p.coins+=bonus;S.p.totalCE=(S.p.totalCE||0)+bonus;saveP();
+    toast('✅ 訂正獲得 +🪙'+bonus);
+  }
+  setTimeout(rFinalResults,800);
+}
+
+function rFinalResults(){
+  var cor=S.qAns.filter(function(x){return x.ok}).length;
+  var n=S.qAns.length,pp=Math.round(cor/n*100);
+  var stars=pp===100?'🌟🌟🌟':pp>=80?'⭐⭐⭐':pp>=60?'⭐⭐':'⭐';
+  var a=app();a.innerHTML='';
+  var top=mkDiv('');top.style.cssText='background:linear-gradient(135deg,#1565C0,#2E7D32);padding:28px 14px 18px;text-align:center';
+  top.innerHTML='<div style="font-size:2.5rem;margin-bottom:6px">'+stars+'</div>'+
+    '<div style="font-size:2.5rem;font-weight:900;color:#FFD700;margin-top:10px">+'+S.earned+' 🪙</div>'+
+    '<div style="font-size:.7rem;color:rgba(255,255,255,.7);margin-top:3px">現有 '+S.p.coins.toLocaleString()+' 🪙</div>';
+  a.appendChild(top);
+  // Coin rain animation
+  if(S.earned>0){
+    for(var ci=0;ci<Math.min(8,Math.ceil(S.earned/20));ci++){
+      (function(delay){setTimeout(function(){
+        var dr=document.createElement('div');
+        dr.style.cssText='position:fixed;font-size:1.5rem;pointer-events:none;z-index:9999;animation:df 1.8s ease forwards;top:10%;left:'+Math.round(10+Math.random()*80)+'%';
+        dr.textContent='🪙';document.body.appendChild(dr);
+        setTimeout(function(){dr.remove()},1900);
+      },delay)})(ci*150);
     }
   }
-  S.qAns.push({ok:ok,c:c,ans:q.isClock?q.a:(q.q+' = '+q.a)});
-  // Wait for student to tap Next, or auto-advance if correct
-  if(ok){
-    setTimeout(function(){S.qi++;if(S.qi>=S.qs.length){clrT();finishQ()}else rQ()},900);
-  }
-  // Wrong: wait for student to tap Next button
-}
-
-function revealAns(){
-  var q=S.qs[S.qi];
-  var ansEl=document.getElementById('ANS-SHOW');
-  if(ansEl){
-    var ans=q.isClock?q.a:q.a;
-    ansEl.innerHTML='<div style="background:#FFF8E1;border:2px solid #FFE082;border-radius:12px;padding:12px;text-align:center"><div style="font-size:.72rem;color:#795548;margin-bottom:4px">正確答案</div><div style="font-size:2rem;font-weight:900;color:#1976D2">'+ans+'</div></div><button onclick="nextQ()" style="display:block;width:100%;margin-top:10px;background:#4CAF50;color:#fff;border:none;border-radius:50px;padding:11px;font-size:.9rem;font-weight:700;cursor:pointer;font-family:inherit">下一題 →</button>';
-  }
-}
-
-function nextQ(){
-  S.qi++;
-  if(S.qi>=S.qs.length){clrT();finishQ()}else rQ();
-}
-function startTimer(){clrT();S.tid=setInterval(function(){S.t--;var el=document.getElementById('QT');if(el){el.textContent=fmt(S.t);if(S.t<=30)el.classList.add('URG');else el.classList.remove('URG')}if(S.t<=0){clrT();autoFinish()}},1000)}
-function autoFinish(){
-  // If currently on a question with input, mark it wrong
-  var inp=document.getElementById('ANS');
-  var curQ=S.qs[S.qi];
-  if(inp&&!inp.disabled&&curQ){
-    // Mark current as wrong (no answer)
-    S.qAns.push({ok:false,c:0,ans:curQ.isClock?curQ.a:curQ.a});
-    S.qi++;
-  }
-  finishQ();
-}
-function finishQ(){
-  while(S.qi<S.qs.length){S.qAns.push({ok:false,c:0});S.qi++}
-  var cor=0;S.qAns.forEach(function(aa){if(aa.ok)cor++});
-  var n=S.qAns.length,pct=cor/n;
-  // 0題答對 = 0金幣；時間加成比例型
-  var tB=cor>0?Math.round((S.t/(S.tl*60))*20):0;
-  var aB=cor>0?(pct===1?50:pct>=.8?20:pct>=.6?10:0):0;
-  S.earned+=tB+aB;if(cor===0)S.earned=0;
-  S.p.coins+=S.earned;S.p.totalC=(S.p.totalC||0)+cor;S.p.totalA=(S.p.totalA||0)+n;
-  S.p.totalCE=(S.p.totalCE||0)+S.earned;if(S.maxStreak>(S.p.bestStreak||0))S.p.bestStreak=S.maxStreak;
-  S.p.exp+=cor*5;checkLv();saveP();
-  // Results
-  var base=0;S.qAns.forEach(function(aa){base+=(aa.c||0)});
-  var pp=Math.round(cor/n*100),stars=pp===100?'🌟🌟🌟':pp>=80?'⭐⭐⭐':pp>=60?'⭐⭐':'⭐';
-  var a=app();a.innerHTML='<div style="flex:1;overflow-y:auto"><div style="background:linear-gradient(135deg,#1565C0,#2E7D32);padding:28px 14px 18px;text-align:center"><div style="font-size:2.5rem;margin-bottom:6px">'+stars+'</div><div style="font-size:2.5rem;font-weight:900;color:#FFD700;margin-top:10px">+'+S.earned+' 🪙</div><div style="font-size:.7rem;color:rgba(255,255,255,.7);margin-top:3px">現有 '+S.p.coins.toLocaleString()+' 🪙</div></div><div class="PG"><div class="BDR"><span style="color:#4A5568">📝 答題</span><span style="font-weight:900;color:#F59E0B">🪙 '+base+'</span></div><div class="BDR"><span style="color:#4A5568">⏰ 剩餘時間</span><span style="font-weight:900;color:#F59E0B">+🪙 '+tB+'</span></div><div class="BDR"><span style="color:#4A5568">🎯 正確率</span><span style="font-weight:900;color:#F59E0B">+🪙 '+aB+'</span></div><div class="BDR"><span style="color:#4A5568">💰 合計</span><span style="font-weight:900;color:#F59E0B">🪙 '+S.earned+'</span></div></div></div>';
-  var pg=a.querySelector('.PG');
+  var pg=mkDiv('PG');
+  var statsData=[
+    ['📝','答對',cor+'/'+n],['💰','獲得','🪙 '+S.earned],['🔥','最佳連答',S.maxStreak+'連'],
+  ];
+  statsData.forEach(function(s){
+    var d=mkDiv('BDR');d.innerHTML='<span>'+s[0]+' '+s[1]+'</span><span style="font-weight:900;color:#F59E0B">'+s[2]+'</span>';
+    pg.appendChild(d);
+  });
   var rp=document.createElement('button');rp.className='BTN B-OR BW';rp.textContent='再練一次';rp.addEventListener('click',startQ);pg.appendChild(rp);
   var hp=document.createElement('button');hp.className='BTN B-GR BW';hp.textContent='回首頁 🏡';hp.addEventListener('click',function(){go('home')});pg.appendChild(hp);
+  a.appendChild(pg);
 }
+
+function startTimer(){
+  clrT();
+  S.tid=setInterval(function(){
+    S.t--;
+    var el=document.getElementById('QT');
+    if(el){el.textContent=fmt(S.t);if(S.t<=30)el.classList.add('URG');else el.classList.remove('URG')}
+    if(S.t<=0){clrT();exitQ()}
+  },1000)
+}
+function finishQ(){doFinalMark()} // legacy compat
+
 // Mini-games
 function rMgh(){
   var p=S.p,mg1d=p.mgDone&&p.mgDone.mg1===today(),mg2d=p.mgDone&&p.mgDone.mg2===today();
@@ -2125,7 +3634,7 @@ function rSet(){
   var pr=mkDiv('STROW');pr.innerHTML='<div><div style="font-size:.85rem;font-weight:700">修改 PIN 密碼</div></div>';
   var pb=document.createElement('button');pb.className='BTN B-WH';pb.style.cssText='padding:6px 12px;font-size:.74rem';pb.textContent='修改';pb.addEventListener('click',showChgPin);pr.appendChild(pb);c1.appendChild(pr);
   // HW toggle
-  var hr=mkDiv('STROW');hr.innerHTML='<div><div style="font-size:.85rem;font-weight:700">✏️ 手寫辨識</div><div style="font-size:.68rem;color:#9EA8B1">'+(apiKey?'已設定 API Key':'需設定 API Key')+'</div></div>';
+  var hr=mkDiv('STROW');hr.innerHTML='<div><div style="font-size:.85rem;font-weight:700">✏️ 手寫辨識（完全免費）</div><div style="font-size:.68rem;color:'+(OCR_READY?'#4CAF50':'#9EA8B1')+'">'+(OCR_READY?'✅ 辨識模型已載入':'首次開啟需下載模型，約5-10秒')+'</div></div>';
   var ht=mkDiv('TOG'+(p.settings.hw?' ON':''));ht.addEventListener('click',function(){S.p.settings.hw=!S.p.settings.hw;if(S.p.settings.hw)initOCR();saveP();rSet();if(S.p.settings.hw)toast('手寫辨識已開啟！')});hr.appendChild(ht);c1.appendChild(hr);
   pg.appendChild(c1);
   // API Key card
@@ -2162,6 +3671,7 @@ render();
 // Pre-load OCR in background after 3 seconds
 setTimeout(function(){if(typeof Tesseract!=='undefined')initOCR()},3000);
 if('serviceWorker' in navigator)window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})});
+
 
 </script>
 </body>
