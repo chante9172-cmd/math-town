@@ -7,8 +7,8 @@
 <meta name="theme-color" content="#4CAF50">
 <title>數學小鎮 v4</title>
 <link rel="manifest" href="manifest.json">
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
 <style>
+
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden;font-family:system-ui,sans-serif;background:#1B4332;color:#1B2631}
 #app{max-width:480px;margin:0 auto;height:100%;display:flex;flex-direction:column;overflow:hidden}
@@ -97,11 +97,13 @@ input[type=number]::-webkit-inner-spin-button{display:none}
 .IB::-webkit-scrollbar{display:none}
 .ICIP{border:1.5px solid #E0E7EF;border-radius:10px;padding:5px 7px;text-align:center;cursor:pointer;flex-shrink:0;min-width:52px;background:#F7FBF7}
 .ICIP.SEL{border-color:#4CAF50;background:rgba(76,175,80,.1)}
+
 </style>
 </head>
 <body>
 <div id="app"></div>
 <script>
+
 
 var IT={
 R:{id:'R',n:'岩石',e:'🪨',bg:'#52B788',bd:'#2D6A4F',c:8,cat:'deco'},
@@ -3135,7 +3137,7 @@ function rQuiz(){
   hwDiv.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between"><div><div style="font-size:.8rem;font-weight:700">✏️ 手寫辨識（免費）</div><div style="font-size:.64rem;color:#9EA8B1">' + (OCR_READY ? '✅ 模型已就緒' : '首次開啟需載入') + '</div></div></div>';
   var tog=mkDiv('TOG'+(S.p.settings.hw&&apiKey?' ON':''));hwDiv.querySelector('div').appendChild(tog);
   tog.addEventListener('click',function(){S.p.settings.hw=!S.p.settings.hw;if(S.p.settings.hw)initOCR();hwDiv.style.background=S.p.settings.hw?'#F0FFF4':'#FFF8F0';tog.className='TOG'+(S.p.settings.hw?' ON':'')});
-  pg.appendChild(hwDiv);
+
   // Estimate
   var est=mkDiv('CARD');est.style.cssText='background:#FFFDE7;border-color:#FFE082';est.innerHTML='<div style="font-size:.68rem;color:#795548">預估可賺</div><div style="font-size:1.6rem;font-weight:900;color:#F59E0B;margin-top:3px">🪙 '+Math.round(200*gm*timeMul())+' ~ '+Math.round(420*gm*timeMul())+'</div><div style="font-size:.62rem;color:#888;margin-top:2px">⏱ 時限越短倍率越高：10分×1.5 / 20分×1.2 / 30分×1.0 / 40分×0.8</div>';pg.appendChild(est);
   var motivates=['加油！你可以的 💪','今天多賺一點金幣！🪙','挑戰自己！⭐','認真作答得更多 🏆'];
@@ -3155,152 +3157,21 @@ function startQ(){var n=(S.mode==='ck'||S.mode==='99')?10:20;S.qs=makeQs(S.mode,
 function rQ(){
   var q=S.qs[S.qi],n=S.qs.length,m=getMD(S.mode);
   var a=app();a.innerHTML='';
-  // Header - no coin count, just progress
   var hdr=mkDiv('QHDR');
-  hdr.innerHTML='<div><div style="font-size:.75rem;font-weight:700;color:#fff">'+m.n+'</div></div>'+
-    '<div style="font-size:.72rem;color:rgba(255,255,255,.9);font-weight:700">'+(S.qi+1)+'/'+n+'</div>'+
-    '<div class="QTMR'+(S.t<=30?' URG':'')+'" id="QT">'+fmt(S.t)+'</div>';
-  var exitBtn=document.createElement('button');
-  exitBtn.style.cssText='background:rgba(255,255,255,.2);border:none;color:#fff;font-size:.65rem;padding:3px 10px;border-radius:50px;cursor:pointer';
-  exitBtn.textContent='結束';
-  exitBtn.addEventListener('click',exitQ);
-  hdr.appendChild(exitBtn);
-  a.appendChild(hdr);
-  // Progress bar
-  var pbar=mkDiv('');pbar.style.cssText='height:5px;background:rgba(255,255,255,.25);overflow:hidden';
-  pbar.innerHTML='<div style="height:100%;background:#FFD700;width:'+Math.round(S.qi/n*100)+'%;transition:width .3s"></div>';
-  a.appendChild(pbar);
-  // Body
-  var body=mkDiv('');body.style.cssText='flex:1;overflow-y:auto;padding:16px 14px;display:flex;flex-direction:column;gap:12px;background:#F7FBFF';
-  // Question
-  if(q.isClock){
-    var cDiv=mkDiv('');cDiv.style.cssText='display:flex;flex-direction:column;align-items:center;gap:6px';
-    cDiv.innerHTML=clockSVG(q.h,q.m)+'<div style="font-size:.7rem;color:#9EA8B1">請輸入時間（例：3:30）</div>';
-    body.appendChild(cDiv);
-  } else {
-    var qDiv=mkDiv('');
-    qDiv.style.cssText='background:#fff;border-radius:16px;padding:20px;text-align:center;font-size:2.2rem;font-weight:900;color:#1B2631;border:2px solid #E8F5E9;box-shadow:0 2px 8px rgba(0,0,0,.06)';
-    qDiv.textContent=q.q+' = ?';
-    body.appendChild(qDiv);
-  }
-  // Input area
-  var useHW=S.p.settings.hw;
-  if(useHW){
-    // ── Numpad (primary) ──
-    var padState={val:''};
-    var padDisplay=document.createElement('div');
-    padDisplay.style.cssText='background:#1B2631;color:#FFD700;border-radius:14px;padding:14px;text-align:center;font-size:2.4rem;font-weight:900;min-height:68px;display:flex;align-items:center;justify-content:center;letter-spacing:.1em;margin-bottom:8px';
-    padDisplay.textContent='?';
-    body.appendChild(padDisplay);
-    function updatePad(){padDisplay.textContent=padState.val||'?';padDisplay.style.color=padState.val?'#FFD700':'#9EA8B1';}
-    var padGrid=document.createElement('div');
-    padGrid.style.cssText='display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px';
-    [1,2,3,4,5,6,7,8,9,'←',0,'✓'].forEach(function(k){
-      var kb=document.createElement('div');
-      var isOk=k==='✓',isDel=k==='←';
-      kb.style.cssText='border-radius:12px;padding:16px 8px;text-align:center;font-size:1.6rem;font-weight:900;cursor:pointer;user-select:none;-webkit-user-select:none;active:transform:scale(.93);transition:transform .08s;'+(isOk?'background:#4CAF50;color:#fff;':'isDel'?'background:#FFE082;color:#1B2631;':'background:#F0F4F8;color:#1B2631;');
-      if(isOk)kb.style.cssText+='background:#4CAF50;color:#fff;';
-      else if(isDel)kb.style.cssText+='background:#FFE082;color:#333;';
-      else kb.style.cssText+='background:#F0F4F8;color:#1B2631;';
-      kb.textContent=k;
-      kb.addEventListener('pointerdown',function(e){e.preventDefault();this.style.transform='scale(.92)';this.style.opacity='.8'});
-      kb.addEventListener('pointerup',function(e){this.style.transform='';this.style.opacity='1';
-        if(isDel){padState.val=padState.val.slice(0,-1);}
-        else if(isOk){
-          if(!padState.val){padDisplay.style.background='#5D1111';setTimeout(function(){padDisplay.style.background='';},300);return;}
-          S.qAns.push({val:padState.val,q:q});S.qi++;padState.val='';
-          if(S.qi>=S.qs.length){clrT();doFinalMark()}else rQ();
-        } else {
-          if(padState.val.length>=3)return;
-          padState.val+=String(k);
-        }
-        updatePad();
-      });
-      padGrid.appendChild(kb);
-    });
-    body.appendChild(padGrid);
-    // ── Canvas (optional, writes here and auto-fills numpad) ──
-    var cvToggle=document.createElement('button');
-    cvToggle.style.cssText='width:100%;padding:9px;background:#E3F2FD;border:1.5px solid #90CAF9;border-radius:10px;font-size:.8rem;font-weight:700;cursor:pointer;font-family:inherit;color:#1565C0;margin-bottom:4px';
-    cvToggle.textContent='✏️ 展開手寫區（輔助）';
-    var cvArea=document.createElement('div');cvArea.style.display='none';
-    var cvWrap=mkDiv('CVWRAP');cvWrap.innerHTML='<canvas id="CC" width="448" height="140" style="display:block;width:100%;touch-action:none;cursor:crosshair;border-radius:10px"></canvas>';
-    var cvBtns2=mkDiv('');cvBtns2.style.cssText='display:flex;gap:6px;margin-top:4px';
-    var clrBtn2=document.createElement('button');clrBtn2.className='BTN B-WH';clrBtn2.style.cssText='flex:1;padding:7px;font-size:.78rem';clrBtn2.textContent='🗑 清除';clrBtn2.addEventListener('click',function(){clrCv();document.getElementById('hw-prev').textContent='寫完後自動辨識…'});
-    var recBtn=document.createElement('button');recBtn.style.cssText='flex:2;padding:7px;background:#1976D2;color:#fff;border:none;border-radius:50px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:inherit';recBtn.textContent='🔍 辨識並填入';
-    recBtn.addEventListener('click',async function(){
-      if(!S.strokes||!S.strokes.length){toast('請先寫字！');return}
-      recBtn.disabled=true;recBtn.textContent='辨識中…';
-      var res=await recognizeHW(q.isClock);
-      recBtn.disabled=false;recBtn.textContent='🔍 辨識並填入';
-      if(res){padState.val=res;updatePad();document.getElementById('hw-prev').textContent='✅ 辨識：'+res+' （請確認後按 ✓）';}
-      else{document.getElementById('hw-prev').textContent='⚠️ 辨識失敗，請直接按數字';}
-    });
-    cvBtns2.appendChild(clrBtn2);cvBtns2.appendChild(recBtn);
-    var hwPrev=document.createElement('div');hwPrev.id='hw-prev';hwPrev.style.cssText='font-size:.72rem;color:#9EA8B1;text-align:center;margin-top:4px;min-height:16px';hwPrev.textContent='寫完後按「辨識並填入」';
-    cvArea.appendChild(cvWrap);cvArea.appendChild(cvBtns2);cvArea.appendChild(hwPrev);
-    var cvOpen=false;
-    cvToggle.addEventListener('click',function(){
-      cvOpen=!cvOpen;cvArea.style.display=cvOpen?'block':'none';
-      cvToggle.textContent=cvOpen?'✏️ 收起手寫區':'✏️ 展開手寫區（輔助）';
-      if(cvOpen)setTimeout(initCv,50);
-    });
-    body.appendChild(cvToggle);body.appendChild(cvArea);
-    // Skip / switch
-    var hwExtraRow=mkDiv('');hwExtraRow.style.cssText='display:flex;gap:8px;margin-top:4px';
-    var hwSkip=document.createElement('button');hwSkip.className='BTN B-WH';hwSkip.style.cssText='flex:1;padding:9px;font-size:.78rem';hwSkip.textContent='⏭ 跳過';
-    hwSkip.addEventListener('click',function(){S.qAns.push({val:'',q:q});S.qi++;if(S.qi>=S.qs.length){clrT();doFinalMark()}else rQ()});
-    var hwKb=document.createElement('button');hwKb.className='BTN B-WH';hwKb.style.cssText='flex:1;padding:9px;font-size:.78rem';hwKb.textContent='⌨ 只用鍵盤';
-    hwKb.addEventListener('click',function(){S.p.settings.hw=false;rQ()});
-    hwExtraRow.appendChild(hwSkip);hwExtraRow.appendChild(hwKb);body.appendChild(hwExtraRow);
-  } else {
-    var inp=document.createElement('input');
-    inp.type='text';inp.inputMode=q.isClock?'text':'numeric';
-    inp.className='KBINP';inp.id='ANS';
-    inp.placeholder=q.isClock?'例：3:30':'在這裡寫答案';
-    inp.autocomplete='off';inp.style.fontSize='2rem';
-    inp.addEventListener('keydown',function(e){if(e.key==='Enter')nextQNoMark()});
-    body.appendChild(inp);
-    var nextBtn=document.createElement('button');
-    nextBtn.id='CONF-BTN';nextBtn.className='BTN B-GR BW';
-    nextBtn.style.cssText='padding:14px;font-size:1rem;font-weight:900;margin-top:4px';
-    nextBtn.textContent=S.qi===n-1?'✓ 完成作答':'→ 下一題';
-    nextBtn.addEventListener('click',nextQNoMark);
-    body.appendChild(nextBtn);
-    // Extra action row
-    var extraRow=mkDiv('');extraRow.style.cssText='display:flex;gap:8px;margin-top:4px';
-    var skipBtn=document.createElement('button');
-    skipBtn.className='BTN B-WH';skipBtn.style.cssText='flex:1;padding:9px;font-size:.78rem';
-    skipBtn.textContent='⏭ 跳過';
-    skipBtn.addEventListener('click',function(){
-      S.qAns.push({val:'',q:S.qs[S.qi]});S.qi++;
-      if(S.qi>=S.qs.length){clrT();doFinalMark()}else rQ();
-    });
-    extraRow.appendChild(skipBtn);
-    // Switch to handwriting button (only shown in keyboard mode)
-    var toHwBtn=document.createElement('button');
-    toHwBtn.className='BTN B-WH';toHwBtn.style.cssText='flex:1;padding:9px;font-size:.78rem';
-    toHwBtn.textContent='✏️ 改用手寫';
-    toHwBtn.addEventListener('click',function(){
-      S.p.settings.hw=true;
-      rQ();
-    });
-    extraRow.appendChild(toHwBtn);
-    var swBtn=document.createElement('button');
-    swBtn.className='BTN B-WH';swBtn.style.cssText='flex:1;padding:9px;font-size:.78rem';
-    swBtn.textContent='⌨ 改用鍵盤';
-    swBtn.addEventListener('click',function(){
-      // Simple toggle: flip mode and re-render this question (no qi advance)
-      S.p.settings.hw=false;
-      rQ();
-    });
-    extraRow.appendChild(swBtn);
-    body.appendChild(extraRow);
-    setTimeout(function(){inp.focus()},80);
-  }
-  a.appendChild(body);
-  S.QS=Date.now();
+  hdr.innerHTML='<div style="font-size:.75rem;font-weight:700;color:#fff">'+m.n+'</div><div style="font-size:.72rem;color:rgba(255,255,255,.9)">'+(S.qi+1)+'/'+n+'</div><div class="QTMR" id="QT">'+fmt(S.t)+'</div>';
+  var eb=document.createElement('button');eb.style.cssText='background:rgba(255,255,255,.2);border:none;color:#fff;font-size:.65rem;padding:3px 10px;border-radius:50px;cursor:pointer';eb.textContent='結束';eb.addEventListener('click',exitQ);hdr.appendChild(eb);a.appendChild(hdr);
+  var pb=mkDiv('');pb.style.cssText='height:5px;background:rgba(255,255,255,.25)';pb.innerHTML='<div style="height:100%;background:#FFD700;width:'+Math.round(S.qi/n*100)+'%"></div>';a.appendChild(pb);
+  var body=mkDiv('');body.style.cssText='flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;background:#F7FBFF';
+  if(q.isClock){body.innerHTML='<div style="display:flex;flex-direction:column;align-items:center">'+clockSVG(q.h,q.m)+'<div style="font-size:.7rem;color:#9EA8B1;margin-top:6px">請輸入時間（例：3:30）</div></div>';}
+  else{var qd=mkDiv('');qd.style.cssText='background:#fff;border-radius:16px;padding:20px;text-align:center;font-size:2.2rem;font-weight:900;color:#1B2631;border:2px solid #E8F5E9';qd.textContent=q.q+' = ?';body.appendChild(qd);}
+  var inp=document.createElement('input');inp.type='text';inp.inputMode=q.isClock?'text':'numeric';inp.className='KBINP';inp.id='ANS';inp.placeholder=q.isClock?'例：3:30':'答案';inp.autocomplete='off';inp.style.fontSize='2rem';
+  inp.addEventListener('keydown',function(e){if(e.key==='Enter')nextQNoMark()});body.appendChild(inp);
+  var nb=document.createElement('button');nb.className='BTN B-GR BW';nb.style.cssText='padding:14px;font-size:1rem;font-weight:900;margin-top:4px';nb.textContent=S.qi===n-1?'✓ 完成作答':'→ 下一題';nb.addEventListener('click',nextQNoMark);body.appendChild(nb);
+  var sb=document.createElement('button');sb.className='BTN B-WH BW';sb.style.cssText='padding:9px;font-size:.78rem;margin-top:2px';sb.textContent='⏭ 跳過';sb.addEventListener('click',function(){S.qAns.push({val:'',q:q});S.qi++;if(S.qi>=S.qs.length){clrT();doFinalMark()}else rQ()});body.appendChild(sb);
+  a.appendChild(body);S.QS=Date.now();
+  setTimeout(function(){var i=document.getElementById('ANS');if(i)i.focus()},80);
 }
+
 
 function nextQNoMark(){
   // Just record the answer (don't mark yet), move to next
@@ -3634,8 +3505,7 @@ function rSet(){
   var pr=mkDiv('STROW');pr.innerHTML='<div><div style="font-size:.85rem;font-weight:700">修改 PIN 密碼</div></div>';
   var pb=document.createElement('button');pb.className='BTN B-WH';pb.style.cssText='padding:6px 12px;font-size:.74rem';pb.textContent='修改';pb.addEventListener('click',showChgPin);pr.appendChild(pb);c1.appendChild(pr);
   // HW toggle
-  var hr=mkDiv('STROW');hr.innerHTML='<div><div style="font-size:.85rem;font-weight:700">✏️ 手寫辨識（完全免費）</div><div style="font-size:.68rem;color:'+(OCR_READY?'#4CAF50':'#9EA8B1')+'">'+(OCR_READY?'✅ 辨識模型已載入':'首次開啟需下載模型，約5-10秒')+'</div></div>';
-  var ht=mkDiv('TOG'+(p.settings.hw?' ON':''));ht.addEventListener('click',function(){S.p.settings.hw=!S.p.settings.hw;if(S.p.settings.hw)initOCR();saveP();rSet();if(S.p.settings.hw)toast('手寫辨識已開啟！')});hr.appendChild(ht);c1.appendChild(hr);
+
   pg.appendChild(c1);
   // API Key card
   var c2=mkDiv('CARD');c2.style.cssText='background:#F0FFF4;border-color:#A5D6A7';c2.innerHTML='<div class="SL">Anthropic API Key（手寫辨識用）</div><div style="font-size:.68rem;color:#9EA8B1;margin-bottom:10px">至 console.anthropic.com 取得，只存在本機。</div>';
@@ -3671,6 +3541,7 @@ render();
 // Pre-load OCR in background after 3 seconds
 setTimeout(function(){if(typeof Tesseract!=='undefined')initOCR()},3000);
 if('serviceWorker' in navigator)window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})});
+
 
 
 </script>
