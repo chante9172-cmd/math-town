@@ -811,7 +811,7 @@ function addG(id,a,force){
   if(!force&&warehouseFull()){
     toast('⚠️ 倉庫已滿！先去商店出售貨物');return false;
   }
-  S.p.inv[id]=(S.p.inv[id]||0)+a;return true;
+  S.p.inv[id]=(S.p.inv[id]||0)+a;if(!S.p._everHad)S.p._everHad={};S.p._everHad[id]=true;return true;
 }
 function hasG(id,a){return(S.p.inv[id]||0)>=a}
 function remG(id,a){S.p.inv[id]=(S.p.inv[id]||0)-a;if(S.p.inv[id]<0)S.p.inv[id]=0}
@@ -881,13 +881,35 @@ function checkDailyQuest(type, amount) {
 }
 
 function checkLv(){
-  while(S.p.exp>=expN(S.p.level)){
-    S.p.exp-=expN(S.p.level);S.p.level++;var b=S.p.level*15;S.p.coins+=b;S.p.totalCE=(S.p.totalCE||0)+b;
-    var el=document.createElement('div');el.style.cssText='position:fixed;top:35%;left:50%;transform:translate(-50%,-50%);background:#fff;border:3px solid #FFD700;border-radius:20px;padding:22px 28px;text-align:center;z-index:9999;animation:pop .4s ease;max-width:240px';
-    el.innerHTML='<div style="font-size:2rem">⭐</div><div style="font-size:1.2rem;font-weight:900;color:#1976D2;margin-top:4px">升級！Lv.'+S.p.level+'</div><div style="font-size:.8rem;color:#2E7D32;margin-top:3px">+'+b+'🪙</div>';
-    document.body.appendChild(el);setTimeout(function(){el.remove()},2500)
+  if(!S.p)return;
+  var lvReq=function(lv){return 100+lv*50};
+  var leveled=false;
+  while(S.p.exp>=lvReq(S.p.level)){
+    S.p.exp-=lvReq(S.p.level);S.p.level++;
+    leveled=true;
+    // Big level-up popup
+    var ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:9999;animation:fade .3s ease';
+    var box=document.createElement('div');
+    box.style.cssText='background:linear-gradient(135deg,#FFD700,#FF6B35);border-radius:24px;padding:30px 40px;text-align:center;animation:pop .5s ease;box-shadow:0 8px 32px rgba(0,0,0,.5)';
+    box.innerHTML='<div style="font-size:4rem">🎉</div><div style="font-size:1.8rem;font-weight:900;color:#fff;margin:10px 0">升級了！</div><div style="font-size:3rem;font-weight:900;color:#fff">Lv.'+S.p.level+'</div><div style="font-size:.85rem;color:rgba(255,255,255,.85);margin-top:8px">倉庫容量+25 / 新建築解鎖！</div>';
+    var okBtn=document.createElement('button');okBtn.style.cssText='margin-top:16px;padding:12px 32px;background:#fff;color:#FF6B35;border:none;border-radius:50px;font-size:1rem;font-weight:900;cursor:pointer;font-family:inherit';okBtn.textContent='繼續！';
+    okBtn.addEventListener('click',function(){ov.remove();render()});
+    box.appendChild(okBtn);ov.appendChild(box);
+    // Confetti
+    for(var ci=0;ci<12;ci++){(function(d){setTimeout(function(){
+      var dr=document.createElement('div');dr.style.cssText='position:fixed;font-size:1.5rem;pointer-events:none;z-index:9999;animation:df 2s ease forwards;top:5%;left:'+Math.round(5+Math.random()*90)+'%';
+      dr.textContent=['🎊','⭐','🌟','💫','✨','🎈'][Math.floor(Math.random()*6)];
+      document.body.appendChild(dr);setTimeout(function(){dr.remove()},2100);
+    },d*100)})(ci);}
+    document.body.appendChild(ov);
+    S.p.warehouseCap=(S.p.warehouseCap||100)+25;
+    checkAchievements('level',S.p.level);
+    updateWeekChallenge('level',S.p.level);
   }
+  if(leveled)saveP();
 }
+
 function rdyCnt(){
   if(!S.p)return 0;var c=0;
   Object.values(S.p.farms||{}).forEach(function(f){if(f.done)c++});
@@ -922,7 +944,7 @@ function fulOrder(oi){
   S.p.coins+=ord.reward;S.p.totalCE=(S.p.totalCE||0)+ord.reward;S.p.exp+=20;checkLv();
   S.p.orders.splice(oi,1);if(S.p.orders.length<2)genOrders();
   S.p.totalOrders=(S.p.totalOrders||0)+1;
-  checkAchievements('orders',1);checkDailyQuest('order',1);
+  checkAchievements('orders',1);checkDailyQuest('order',1);updateWeekChallenge('orders',1);
   saveP();toast('訂單完成！+'+ord.reward+'🪙');rOrders()
 }
 function refOrd(oi){
@@ -946,6 +968,10 @@ function startTick(){
     Object.values(S.p.animalSlots||{}).forEach(function(a){if(a.fed&&!a.ready&&a.readyTime&&now>=a.readyTime){a.ready=true;ch=true}});
     Object.values(S.p.factories||{}).forEach(function(fac){if(fac.queue&&fac.queue.length>0&&!fac.queue[0].done&&now>=fac.queue[0].endTime){fac.queue[0].done=true;ch=true}});
     if(ch&&S.sc==='town')try{rfDots()}catch(e){}
+    if(S.sc==='town')try{checkCitizenRequest()}catch(e){}
+    try{checkTreasureChest()}catch(e){}
+    // Random events
+    if(S.sc==='town'||S.sc==='home')try{checkRandomEvent()}catch(e){}
   },1000)
 }
 function addDot(idx){var c=document.getElementById('c'+idx);if(c&&!c.querySelector('.CDOT')){var d=document.createElement('div');d.className='CDOT';c.appendChild(d)}}
@@ -2318,6 +2344,11 @@ function renderISO(){
     }
   });
 
+  // Treasure chest on map
+  if(treasurePos){
+    var tsc=i2s(treasurePos.c,treasurePos.r);
+    drawTreasure(ctx,tsc.x,tsc.y);
+  }
   // Villagers - little characters walking around (only during day)
   if(!S.edit&&isDay){
     var vills=[{id:0,e:'🧒'},{id:1,e:'👦'},{id:2,e:'👧'}];
@@ -2455,7 +2486,7 @@ function tbH(){
   return el
 }
 function bnH(act){
-  var defs=[['home','🏠','首頁'],['town','🏘','小鎮'],['farm','🌾','農場'],['orders','📋','訂單'],['shop','🏪','商店']];
+  var defs=[['home','🏠','首頁'],['town','🏘','小鎮'],['quiz','📝','答題'],['orders','📋','訂單'],['shop','🏪','商店']];
   var el=document.createElement('div');el.className='BN';
   defs.forEach(function(d){
     var btn=document.createElement('button');
@@ -2591,6 +2622,12 @@ function rHome(){
   })();
   pg.innerHTML='<div class="HLB">📅 今日登入 +🪙20！歡迎 '+p.displayName+'！</div><div class="AG"><div class="AC" id="h-town"><div style="font-size:1.4rem;margin-bottom:4px">🏘</div><div style="font-size:.8rem;font-weight:700">我的小鎮</div><div style="font-size:.58rem;color:#9EA8B1;margin-top:2px">'+(rc>0?'📦'+rc+' 可收取':p.town.filter(Boolean).length+'棟建築')+'</div></div><div class="AC" id="h-farm"><div style="font-size:1.4rem;margin-bottom:4px">🌾</div><div style="font-size:.8rem;font-weight:700">農場 & 工廠</div><div style="font-size:.58rem;color:#9EA8B1;margin-top:2px">種作物・加工生產</div></div><div class="AC" id="h-ord"><div style="font-size:1.4rem;margin-bottom:4px">📋</div><div style="font-size:.8rem;font-weight:700">訂單</div><div style="font-size:.58rem;color:#9EA8B1;margin-top:2px">'+(ordRdy>0?ordRdy+'筆可完成！':(p.orders||[]).length+'個進行中')+'</div></div><div class="AC" id="h-quiz"><div style="font-size:1.4rem;margin-bottom:4px">📝</div><div style="font-size:.8rem;font-weight:700">做題賺金幣</div><div style="font-size:.58rem;color:#9EA8B1;margin-top:2px">×'+bst().toFixed(1)+' 魔法加成</div></div><div class="AC" id="h-shop"><div style="font-size:1.4rem;margin-bottom:4px">🏪</div><div style="font-size:.8rem;font-weight:700">商店</div><div style="font-size:.58rem;color:#9EA8B1;margin-top:2px">買建築・擴地</div></div><div class="AC" id="h-mg"><div style="font-size:1.4rem;margin-bottom:4px">🎮</div><div style="font-size:.8rem;font-weight:700">每日小遊戲</div><div style="font-size:.58rem;color:#9EA8B1;margin-top:2px">等級越高難度越大</div></div></div>';
   // Quick news feed
+  // Weather widget
+  var weatherEmojis=['☀️','🌤️','⛅','🌈','🌙','⭐'];
+  var todayWeather=weatherEmojis[new Date().getDate()%weatherEmojis.length];
+  var weatherDiv=mkDiv('');weatherDiv.style.cssText='background:linear-gradient(135deg,#0288D1,#00897B);border-radius:12px;padding:10px 14px;color:#fff;display:flex;align-items:center;gap:10px';
+  weatherDiv.innerHTML='<div style="font-size:2rem">'+todayWeather+'</div><div><div style="font-size:.78rem;font-weight:700">今日小鎮天氣</div><div style="font-size:.65rem;opacity:.85">'+(p.displayName)+'的小鎮，連續登入 '+(p.loginDays||1)+' 天 🔥</div></div><div style="margin-left:auto;font-size:.72rem;font-weight:700;background:rgba(255,255,255,.2);border-radius:50px;padding:3px 10px">等級 '+p.level+'</div>';
+  pg.appendChild(weatherDiv);
   var newsItems=[
     '📢 農地已升級！可種植更多作物',
     '🌤️ 今天天氣晴！小鎮居民心情好',
@@ -2603,7 +2640,10 @@ function rHome(){
   newsDiv.innerHTML='<span style="flex-shrink:0">📰</span><span>'+newsItems[Math.floor(Date.now()/30000)%newsItems.length]+'</span>';
   pg.appendChild(newsDiv);
   var sb=document.createElement('button');sb.className='BTN B-WH BW';sb.style.padding='9px';sb.textContent='📊 我的紀錄';sb.addEventListener('click',function(){go('stats')});
+  // Boss shortcut on home
+  var bossHome=document.createElement('button');bossHome.className='BTN BW';bossHome.style.cssText='padding:9px;background:linear-gradient(135deg,#C62828,#7B1FA2);color:#fff;margin-top:0';bossHome.innerHTML='👹 挑戰魔王';bossHome.addEventListener('click',showBossChallenge);
   pg.appendChild(sb);
+  pg.appendChild(bossHome);
   if(dqDiv.innerHTML)pg.insertBefore(dqDiv,pg.firstChild);
   a.appendChild(pg);
   a.appendChild(bnH('home'));
@@ -2889,7 +2929,7 @@ function showBuildingPopup(idx,bd){
 }
 
 function showRem(idx,bd){
-  if(bd.warehouse){showBuildingPopup(idx,bd);return}
+  // Warehouse can be moved but not removed
   var ov=document.createElement('div');ov.className='POPUP';
   var box=document.createElement('div');box.className='PBX';
   box.innerHTML='<div style="text-align:center;font-size:2.2rem;margin-bottom:6px">'+bd.e+'</div><div style="text-align:center;font-weight:700;margin-bottom:14px">'+bd.n+'</div>'+(bd.coin?'<div style="text-align:center;font-size:.74rem;color:#4CAF50;margin-bottom:10px">每日生產 🪙'+bd.coin+'</div>':'');
@@ -2936,8 +2976,13 @@ function rShop(){
   topBar.appendChild(catDiv);wrap.appendChild(topBar);
   var pg=mkDiv('PG');pg.style.paddingTop='10px';
   // Sell section
-  // Mystery Box
+  // Lucky Spin + Mystery Box
   if(S.scat==='bldg'){
+    var spinDiv=mkDiv('CARD');spinDiv.style.cssText='background:linear-gradient(135deg,#FF6B35,#FFD700);cursor:pointer;text-align:center;padding:14px';
+    var spinCostD=30+S.p.level*5;
+    spinDiv.innerHTML='<div style="font-size:2rem">🎰</div><div style="font-size:.9rem;font-weight:900;color:#fff;margin-top:4px">幸運轉盤</div><div style="font-size:.68rem;color:rgba(255,255,255,.9);margin-top:2px">🪙'+spinCostD+' 轉一次，隨機大獎！</div>';
+    spinDiv.addEventListener('click',function(){ov2=null;showLuckySpin()});
+    pg.appendChild(spinDiv);
     var mbox=mkDiv('CARD');mbox.style.cssText='background:linear-gradient(135deg,#7B1FA2,#1565C0);cursor:pointer;text-align:center;padding:16px';
     var mbcost=100+S.p.level*20;
     mbox.innerHTML='<div style="font-size:2rem">🎁</div><div style="font-size:.88rem;font-weight:900;color:#fff;margin-top:4px">神秘寶箱</div><div style="font-size:.68rem;color:rgba(255,255,255,.8);margin-top:3px">花費 🪙'+mbcost+' 隨機獲得建築或道具</div>';
@@ -3099,7 +3144,7 @@ function rQuiz(){
     var list=mkDiv('');list.style.cssText='display:flex;flex-direction:column;gap:8px';
     QM.forEach(function(m){
       var item=mkDiv('MI');item.innerHTML='<div style="width:42px;height:42px;border-radius:12px;background:'+m.c+';display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:900;color:#fff;flex-shrink:0">'+m.sym+'</div><div style="flex:1"><div style="font-size:.88rem;font-weight:700">'+m.n+'</div></div>';
-      (function(mid){item.addEventListener('click',function(){S.mode=mid;S.tl=getMD(mid).tO[0];if(mid==='99'||mid==='ck')S.grade='d1';rQuiz()})})(m.id);
+      (function(mid){item.addEventListener('click',function(){S.mode=mid;S.tl=getMD(mid).tO[0];if(mid==='99'||mid==='ck')S.grade='d1';if(mid!=='99')delete S.q99n;rQuiz()})})(m.id);
       list.appendChild(item);
     });
     pg.appendChild(list);a.appendChild(pg);a.appendChild(bnH('quiz'));return
@@ -3140,10 +3185,33 @@ function rQuiz(){
 
   // Estimate
   var est=mkDiv('CARD');est.style.cssText='background:#FFFDE7;border-color:#FFE082';est.innerHTML='<div style="font-size:.68rem;color:#795548">預估可賺</div><div style="font-size:1.6rem;font-weight:900;color:#F59E0B;margin-top:3px">🪙 '+Math.round(200*gm*timeMul())+' ~ '+Math.round(420*gm*timeMul())+'</div><div style="font-size:.62rem;color:#888;margin-top:2px">⏱ 時限越短倍率越高：10分×1.5 / 20分×1.2 / 30分×1.0 / 40分×0.8</div>';pg.appendChild(est);
+  // 九九乘法題數選擇
+  if(S.mode==='99'){
+    var cntRow=mkDiv('CARD');cntRow.style.cssText='background:#FFF8E1;border-color:#FFE082;padding:10px 14px';
+    cntRow.innerHTML='<div style="font-size:.75rem;font-weight:700;margin-bottom:8px">📝 題數選擇</div>';
+    var cntBtns=mkDiv('');cntBtns.style.cssText='display:flex;gap:8px';
+    [['20題','20'],['50題','50'],['100題','100']].forEach(function(opt){
+      var cb=document.createElement('button');
+      var isAct=(S.q99n||20)===parseInt(opt[1]);
+      cb.style.cssText='flex:1;padding:9px;border-radius:10px;border:2px solid '+(isAct?'#F59E0B':'#E0E0E0')+';background:'+(isAct?'#FFF3CD':'#fff')+';font-weight:700;font-size:.82rem;cursor:pointer;font-family:inherit;color:'+(isAct?'#92400E':'#4A5568');
+      cb.textContent=opt[0];
+      cb.addEventListener('click',function(){S.q99n=parseInt(opt[1]);rQuiz()});
+      cntBtns.appendChild(cb);
+    });
+    cntRow.appendChild(cntBtns);pg.appendChild(cntRow);
+  }
   var motivates=['加油！你可以的 💪','今天多賺一點金幣！🪙','挑戰自己！⭐','認真作答得更多 🏆'];
   var mvDiv=mkDiv('');mvDiv.style.cssText='text-align:center;font-size:.78rem;color:#FF6B35;font-weight:700;padding:4px';
   mvDiv.textContent=motivates[Math.floor(Math.random()*motivates.length)];pg.appendChild(mvDiv);
+  // Power-up bar
+  var puBar=mkDiv('');puBar.style.cssText='display:flex;gap:6px;justify-content:center';
+  var puOwned=(S.p.powerups&&Object.keys(S.p.powerups).length>0);
+  if(puOwned){Object.keys(POWERUPS).forEach(function(id){var cnt=(S.p.powerups&&S.p.powerups[id])||0;if(!cnt)return;var pu=POWERUPS[id];var pb=document.createElement('div');pb.style.cssText='background:#FFF8E1;border:1.5px solid #FFE082;border-radius:10px;padding:4px 10px;font-size:.72rem;font-weight:700;cursor:pointer';pb.innerHTML=pu.e+' ×'+cnt;pb.title=pu.n;puBar.appendChild(pb);})}
+  else{var pbShop=document.createElement('button');pbShop.style.cssText='background:#E3F2FD;border:1.5px solid #90CAF9;border-radius:50px;padding:4px 14px;font-size:.72rem;cursor:pointer;font-family:inherit;color:#1565C0';pbShop.textContent='⚡ 購買答題道具';pbShop.addEventListener('click',showPowerupMenu);puBar.appendChild(pbShop);}
+  pg.appendChild(puBar);
   var sb=document.createElement('button');sb.className='BTN B-OR BW';sb.style.cssText='font-size:1.05rem;font-weight:900;padding:16px';sb.textContent='⚔️ 開始！';sb.addEventListener('click',startQ);pg.appendChild(sb);
+  // Boss challenge button
+  var bossBtn=document.createElement('button');bossBtn.className='BTN B-RD BW';bossBtn.style.cssText='padding:11px;font-size:.82rem';bossBtn.innerHTML='👹 數學魔王挑戰（全對得 🪙'+(200+Math.max(1,Math.floor(S.p.level/2))*50)+'）';bossBtn.addEventListener('click',function(){showBossChallenge()});pg.appendChild(bossBtn);
   a.appendChild(pg);a.appendChild(bnH('quiz'));
 }
 function timeMul(){
@@ -3221,6 +3289,20 @@ function doFinalMark(){
     S.earned+=item.c;
   });
   if(cor===0)S.earned=0;
+  // Rainbow bonus
+  if(S._rainbowEnd&&Date.now()<S._rainbowEnd)S.earned=Math.round(S.earned*1.5);
+  // Boss mode bonus
+  var cor2=S.qAns.filter(function(x){return x.ok}).length;
+  if(S._bossMode){
+    localStorage.setItem('mt_boss_'+S.p.name,Date.now());
+    if(cor2===S.qAns.length&&S.qAns.length>0){
+      S.earned+=S._bossReward||200;
+      toast('👹 魔王被打敗！！🎉 獎勵 🪙'+(S._bossReward||200));
+    } else {
+      toast('👹 魔王勝利…全對才能打敗他！');
+    }
+    S._bossMode=false;S._bossReward=0;
+  }
   S.p.coins+=S.earned;
   S.p.totalC=(S.p.totalC||0)+cor;S.p.totalA=(S.p.totalA||0)+S.qAns.length;
   S.p.totalCE=(S.p.totalCE||0)+S.earned;
@@ -3228,6 +3310,8 @@ function doFinalMark(){
   S.p.exp+=cor*5;checkLv();
   checkAchievements('quiz',1);
   checkAchievements('streak',S.maxStreak);
+  updateWeekChallenge('quiz_correct',cor);
+  updateWeekChallenge('earn',S.earned);
   if(cor===S.qAns.length&&cor>0)checkAchievements('perfect',1);
   checkDailyQuest('quiz',1);
   saveP();
@@ -3436,6 +3520,20 @@ function rMgh(){
   if(!mg1d)c1.addEventListener('click',function(){go('mg1')});pg.appendChild(c1);
   var c2=mkDiv('CARD'+(mg2d?' opacity:.7':''));c2.style.cursor=mg2d?'not-allowed':'pointer';c2.innerHTML='<div style="display:flex;align-items:center;gap:12px"><div style="width:50px;height:50px;border-radius:14px;background:#FFF3E0;display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0">⚡</div><div style="flex:1"><div style="font-weight:700;font-size:.9rem">速算泡泡</div><div style="font-size:.68rem;color:#4CAF50">最高 🪙 '+(30+p.level*2)+'</div></div><div style="font-size:.75rem;font-weight:700;color:'+(mg2d?'#9EA8B1':'#E65100')+'">'+(mg2d?'✅':'▶ 開始')+'</div></div>';
   if(!mg2d)c2.addEventListener('click',function(){go('mg2')});pg.appendChild(c2);
+  // Fishing
+  var cf=mkDiv('CARD'+(p.mgDone&&p.mgDone.fish===today()?' opacity:.7':''));cf.style.cursor=(p.mgDone&&p.mgDone.fish===today())?'not-allowed':'pointer';
+  cf.innerHTML='<div style="display:flex;align-items:center;gap:12px"><div style="width:50px;height:50px;border-radius:14px;background:#E0F2F1;display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0">🎣</div><div style="flex:1"><div style="font-weight:700;font-size:.9rem">釣魚時間</div><div style="font-size:.68rem;color:#4CAF50">30秒內盡量釣！</div></div><div style="font-size:.75rem;font-weight:700;color:'+(p.mgDone&&p.mgDone.fish===today()?'#9EA8B1':'#0277BD')+'">'+(p.mgDone&&p.mgDone.fish===today()?'✅':'▶ 開始')+'</div></div>';
+  if(!(p.mgDone&&p.mgDone.fish===today()))cf.addEventListener('click',function(){rFishing()});
+  pg.appendChild(cf);
+  // Weekly challenges
+  var cwk=mkDiv('CARD');cwk.style.cursor='pointer';
+  var wkchallenges=getWeekChallenges();var wkDone=wkchallenges.filter(function(c){return c.done}).length;
+  cwk.innerHTML='<div style="display:flex;align-items:center;gap:12px"><div style="width:50px;height:50px;border-radius:14px;background:#FFF8E1;display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0">📅</div><div style="flex:1"><div style="font-weight:700;font-size:.9rem">本週挑戰</div><div style="font-size:.68rem;color:#F59E0B">完成 '+wkDone+'/3 項挑戰</div></div><div style="font-size:.75rem;font-weight:700;color:#F59E0B">'+( wkDone===3?'✅ 全完成':'▶ 查看')+'</div></div>';
+  cwk.addEventListener('click',function(){rWeekly()});pg.appendChild(cwk);
+  // Collection book
+  var cbook=mkDiv('CARD');cbook.style.cursor='pointer';
+  cbook.innerHTML='<div style="display:flex;align-items:center;gap:12px"><div style="width:50px;height:50px;border-radius:14px;background:#EDE7F6;display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0">📖</div><div style="flex:1"><div style="font-weight:700;font-size:.9rem">收藏圖鑑</div><div style="font-size:.68rem;color:#7B1FA2">收集所有物品！</div></div><div style="font-size:.75rem;font-weight:700;color:#7B1FA2">▶ 查看</div></div>';
+  cbook.addEventListener('click',function(){rCollection()});pg.appendChild(cbook);
   var bk=document.createElement('button');bk.className='BTN B-WH BW';bk.textContent='← 回首頁';bk.addEventListener('click',function(){go('home')});pg.appendChild(bk);
   a.appendChild(pg);a.appendChild(bnH('quiz'));
 }
@@ -3537,13 +3635,517 @@ function showChgPin(){
   var ccl=document.createElement('button');ccl.style.cssText='display:block;width:100%;padding:11px;background:#F7F9FA;border:1.5px solid #E0E7EF;color:#1B2631;border-radius:12px;font-size:.88rem;cursor:pointer;font-family:inherit';ccl.textContent='取消';ccl.addEventListener('click',function(){ov.remove()});
   box.appendChild(cfm);box.appendChild(ccl);ov.appendChild(box);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove()});document.body.appendChild(ov);
 }
+// ── MORE FUN FEATURES ──
+// ============================================================
+// MORE FUN FEATURES
+// ============================================================
+
+// ── 1. FISHING MINI-GAME ──
+function rFishing(){
+  var p=S.p;
+  if(p.mgDone&&p.mgDone.fish===today()){
+    toast('今天已釣魚了！明天再來 🎣');return;
+  }
+  var a=app();a.innerHTML='';
+  var hdr=document.createElement('div');
+  hdr.style.cssText='background:linear-gradient(135deg,#0277BD,#00695C);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0';
+  hdr.innerHTML='<div style="color:#fff;font-weight:700;font-size:.88rem">🎣 釣魚（每日一次）</div><div id="fish-score" style="color:#FFD700;font-weight:900;font-size:.88rem">分數：0</div>';
+  var qb=document.createElement('button');qb.className='BTN B-WH';qb.style.cssText='padding:5px 12px;font-size:.75rem';qb.textContent='放棄';qb.addEventListener('click',function(){clrT();go('mghub')});
+  hdr.appendChild(qb);a.appendChild(hdr);
+  // Game canvas
+  var cv=document.createElement('canvas');cv.width=360;cv.height=420;
+  cv.style.cssText='display:block;width:100%;background:#0277BD;max-height:60vh;';
+  a.appendChild(cv);
+  var ctx=cv.getContext('2d');
+  // Instruction
+  var inst=document.createElement('div');inst.style.cssText='padding:10px;text-align:center;font-size:.78rem;color:#4A5568;flex-shrink:0';inst.textContent='看到魚時點擊畫面釣魚！魚越大分數越高！';a.appendChild(inst);
+  // Game state
+  var gameState={score:0,catches:0,timeLeft:30,fish:[],rod:{x:180,y:30,lineLen:30}};
+  var fishTypes=[
+    {e:'🐟',sz:24,speed:2,pts:5,prob:.5},
+    {e:'🐠',sz:30,speed:2.5,pts:10,prob:.25},
+    {e:'🐡',sz:36,speed:1.5,pts:20,prob:.15},
+    {e:'🦈',sz:50,speed:3,pts:50,prob:.07},
+    {e:'💎',sz:20,speed:4,pts:100,prob:.03},
+  ];
+  // Spawn fish
+  function spawnFish(){
+    var r=Math.random(),cum=0;
+    for(var fi=0;fi<fishTypes.length;fi++){
+      cum+=fishTypes[fi].prob;
+      if(r<cum){
+        var ft=fishTypes[fi];
+        var dir=Math.random()>0.5?1:-1;
+        gameState.fish.push({
+          x:dir>0?-50:cv.width+50,y:80+Math.random()*(cv.height-120),
+          dx:ft.speed*dir,e:ft.e,sz:ft.sz,pts:ft.pts,id:Date.now()+Math.random()
+        });
+        break;
+      }
+    }
+  }
+  // Draw
+  var raf;
+  function draw(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    // Water background
+    var grad=ctx.createLinearGradient(0,0,0,cv.height);
+    grad.addColorStop(0,'#0288D1');grad.addColorStop(1,'#004D70');
+    ctx.fillStyle=grad;ctx.fillRect(0,0,cv.width,cv.height);
+    // Waves
+    ctx.strokeStyle='rgba(255,255,255,0.15)';ctx.lineWidth=2;
+    for(var wi=0;wi<5;wi++){
+      ctx.beginPath();var wy=40+wi*30;
+      for(var wx=0;wx<cv.width;wx+=4)ctx.lineTo(wx,wy+Math.sin((wx+Date.now()/300+wi*50)*0.05)*6);
+      ctx.stroke();
+    }
+    // Rod
+    ctx.strokeStyle='#A0522D';ctx.lineWidth=3;
+    ctx.beginPath();ctx.moveTo(gameState.rod.x,0);ctx.lineTo(gameState.rod.x,20);ctx.stroke();
+    // Line
+    if(gameState.rod.lineLen>0){
+      ctx.strokeStyle='rgba(255,255,255,0.6)';ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(gameState.rod.x,20);ctx.lineTo(gameState.rod.x,gameState.rod.lineLen);ctx.stroke();
+      ctx.beginPath();ctx.arc(gameState.rod.x,gameState.rod.lineLen,5,0,Math.PI*2);
+      ctx.fillStyle='#FF6B35';ctx.fill();
+    }
+    // Fish
+    ctx.font='bold 20px serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    gameState.fish.forEach(function(f){
+      ctx.save();
+      if(f.dx<0){ctx.scale(-1,1);ctx.fillText(f.e,-f.x,f.y);}
+      else ctx.fillText(f.e,f.x,f.y);
+      ctx.restore();
+    });
+    // Timer bar
+    var tp=gameState.timeLeft/30;
+    ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(0,cv.height-8,cv.width,8);
+    ctx.fillStyle=tp>0.5?'#4CAF50':tp>0.25?'#FFD700':'#EF4444';
+    ctx.fillRect(0,cv.height-8,cv.width*tp,8);
+  }
+  // Game loop
+  var lastSpawn=0;
+  function loop(){
+    var now=Date.now();
+    if(now-lastSpawn>1200){spawnFish();lastSpawn=now;}
+    // Move fish
+    gameState.fish=gameState.fish.filter(function(f){
+      f.x+=f.dx;
+      return f.x>-100&&f.x<cv.width+100;
+    });
+    // Line stays where cast, retract after catch
+    draw();
+    raf=requestAnimationFrame(loop);
+  }
+  // Timer
+  S.tid=setInterval(function(){
+    gameState.timeLeft--;
+    var el=document.getElementById('fish-score');
+    if(el)el.textContent='分數：'+gameState.score+' | ⏰'+gameState.timeLeft;
+    if(gameState.timeLeft<=0){
+      clrT();cancelAnimationFrame(raf);
+      endFishing(gameState.score);
+    }
+  },1000);
+  // Click to catch
+  // Move rod to click/tap position
+  function moveRod(e){
+    var rect=cv.getBoundingClientRect();
+    var cx3=(e.clientX-rect.left)*(cv.width/rect.width);
+    gameState.rod.x=Math.max(20,Math.min(cv.width-20,cx3));
+  }
+  cv.addEventListener('mousemove',function(e){if(!spinning)moveRod(e)});
+  cv.addEventListener('touchmove',function(e){e.preventDefault();if(!spinning&&e.touches[0])moveRod(e.touches[0])},{passive:false});
+  var spinning=false;
+  cv.addEventListener('click',function(e){
+    moveRod(e);
+    // Cast line to full length instantly
+    gameState.rod.lineLen=cv.height-30;
+    // Check if line tip is near any fish
+    var lx=gameState.rod.x,ly=gameState.rod.lineLen;
+    var caught=false;
+    gameState.fish=gameState.fish.filter(function(f){
+      if(!caught&&Math.hypot(lx-f.x,ly-f.y)<f.sz*1.2){
+        caught=true;gameState.score+=f.pts;gameState.catches++;
+        var el=document.getElementById('fish-score');
+        if(el)el.textContent='分數：'+gameState.score+' | ⏰'+gameState.timeLeft;
+        // Splash effect
+        ctx.fillStyle='rgba(255,255,255,0.6)';
+        ctx.beginPath();ctx.arc(f.x,f.y,30,0,Math.PI*2);ctx.fill();
+        // Show points popup
+        var popup=document.createElement('div');
+        popup.style.cssText='position:fixed;pointer-events:none;animation:fcu 1s ease forwards;font-size:1.2rem;font-weight:900;color:#FFD700;z-index:9999;left:'+((e.clientX))+'px;top:'+((e.clientY-20))+'px';
+        popup.textContent='+'+f.pts+'pts '+f.e;
+        document.body.appendChild(popup);setTimeout(function(){popup.remove()},1100);
+        gameState.rod.lineLen=30; // retract line
+        return false;
+      }
+      return true;
+    });
+  });
+  loop();
+}
+function endFishing(score){
+  var reward=Math.floor(score/5)+10;
+  var p=S.p;p.coins+=reward;p.totalCE=(p.totalCE||0)+reward;
+  if(!p.mgDone)p.mgDone={};p.mgDone.fish=today();saveP();
+  var a=app();a.innerHTML='';
+  var top=document.createElement('div');top.style.cssText='background:linear-gradient(135deg,#0277BD,#00695C);padding:28px 14px;text-align:center;flex:1';
+  top.innerHTML='<div style="font-size:3rem">🎣</div><div style="font-size:2rem;font-weight:900;color:#FFD700;margin-top:10px">分數：'+score+'</div><div style="font-size:.88rem;color:#fff;margin-top:8px">獲得 🪙'+reward+'</div>';
+  a.appendChild(top);
+  var pg=document.createElement('div');pg.className='PG';
+  var hb=document.createElement('button');hb.className='BTN B-GR BW';hb.textContent='回首頁';hb.addEventListener('click',function(){go('home')});pg.appendChild(hb);a.appendChild(pg);
+}
+
+// ── 2. WEEKLY CHALLENGES ──
+function getWeekKey(){var d=new Date();return d.getFullYear()+'W'+Math.floor((d.getDate()-1)/7)+'M'+d.getMonth();}
+function getWeekChallenges(){
+  var wk=getWeekKey();
+  if(!S.p.weekChallenges||S.p.weekChallenges.week!==wk){
+    var templates=[
+      {desc:'本週答對 50 題',type:'quiz_correct',target:50,reward:200},
+      {desc:'本週完成 10 個訂單',type:'orders',target:10,reward:300},
+      {desc:'本週釣魚 5 次',type:'fish',target:5,reward:150},
+      {desc:'本週升一級',type:'level',target:S.p.level+1,reward:250},
+      {desc:'本週賺 500 金幣',type:'earn',target:500,reward:180},
+    ];
+    // Pick 3 random challenges
+    var picks=templates.sort(function(){return Math.random()-.5}).slice(0,3);
+    S.p.weekChallenges={week:wk,challenges:picks.map(function(c){return Object.assign({},c,{progress:0,done:false})})};
+    saveP();
+  }
+  return S.p.weekChallenges.challenges;
+}
+function rWeekly(){
+  var a=app();a.innerHTML='';a.appendChild(tbH());
+  var pg=document.createElement('div');pg.className='PG FADE';
+  pg.innerHTML='<div style="font-size:.92rem;font-weight:900">📅 本週挑戰</div><div style="font-size:.7rem;color:#9EA8B1;margin-top:-8px">每週更新，完成獲得大獎！</div>';
+  var challenges=getWeekChallenges();
+  challenges.forEach(function(c){
+    var pct=c.target?Math.min(100,Math.round((c.progress||0)/c.target*100)):( c.done?100:0);
+    var card=document.createElement('div');card.className='CARD';
+    card.style.cssText=(c.done?'background:#E8F5E9;border-color:#A5D6A7':'')+';padding:12px';
+    card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div style="font-size:.82rem;font-weight:700">'+(c.done?'✅ ':'⭕ ')+c.desc+'</div><div style="font-size:.72rem;font-weight:900;color:#F59E0B">🪙'+c.reward+'</div></div>'+
+      '<div style="background:#E0E0E0;border-radius:4px;height:6px;overflow:hidden"><div style="background:'+(c.done?'#4CAF50':'#1976D2')+';height:100%;width:'+pct+'%;border-radius:4px;transition:width .5s"></div></div>'+
+      '<div style="font-size:.62rem;color:#9EA8B1;margin-top:4px">'+(c.target?(c.progress||0)+' / '+c.target:'已完成')+'</div>';
+    pg.appendChild(card);
+  });
+  var bk=document.createElement('button');bk.className='BTN B-WH BW';bk.style.padding='9px';bk.textContent='← 返回';bk.addEventListener('click',function(){go('home')});
+  pg.appendChild(bk);a.appendChild(pg);a.appendChild(bnH('home'));
+}
+function updateWeekChallenge(type,amount){
+  if(!S.p.weekChallenges)getWeekChallenges();
+  var challenges=S.p.weekChallenges.challenges;
+  challenges.forEach(function(c){
+    if(c.done)return;
+    if(c.type===type){
+      c.progress=(c.progress||0)+amount;
+      if(c.type==='level'&&S.p.level>=c.target)c.progress=c.target;
+      if(c.progress>=c.target&&!c.done){
+        c.done=true;S.p.coins+=c.reward;S.p.totalCE=(S.p.totalCE||0)+c.reward;
+        var ov=document.createElement('div');
+        ov.style.cssText='position:fixed;top:15%;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#2E7D32,#1565C0);color:#fff;border-radius:18px;padding:16px 24px;z-index:9999;text-align:center;animation:pop .4s ease;box-shadow:0 6px 24px rgba(0,0,0,.4);min-width:220px';
+        ov.innerHTML='<div style="font-size:1.5rem">📅</div><div style="font-size:.95rem;font-weight:900;margin:4px 0">週挑戰完成！</div><div style="font-size:.78rem;opacity:.9">'+c.desc+'</div><div style="font-size:1.3rem;font-weight:900;color:#FFD700;margin-top:6px">+🪙'+c.reward+'</div>';
+        document.body.appendChild(ov);setTimeout(function(){ov.remove()},3500);
+        saveP();
+      }
+    }
+  });
+  saveP();
+}
+
+// ── 3. CITIZEN REQUESTS ──
+var CITIZEN_REQUESTS=[
+  {citizen:'👧',text:'我想要麵包！',need:'bread',amt:1,reward:25},
+  {citizen:'👦',text:'能給我牛奶嗎？',need:'milk',amt:2,reward:30},
+  {citizen:'👴',text:'老人需要雞蛋…',need:'egg',amt:3,reward:20},
+  {citizen:'👩',text:'我要做起司！給我牛奶',need:'milk',amt:1,reward:15},
+  {citizen:'🧒',text:'糖糖糖！我要砂糖！',need:'sugar',amt:2,reward:35},
+  {citizen:'👮',text:'辛苦的警察需要麵包',need:'bread',amt:2,reward:40},
+];
+var activeCitizenReq=null;
+var lastCitizenCheck=0;
+function checkCitizenRequest(){
+  var now=Date.now();
+  if(activeCitizenReq||now-lastCitizenCheck<120000)return;
+  if(Math.random()>0.2)return;
+  lastCitizenCheck=now;
+  var req=CITIZEN_REQUESTS[Math.floor(Math.random()*CITIZEN_REQUESTS.length)];
+  if(!(S.p.inv[req.need]>=req.amt))return; // only request if player has it
+  activeCitizenReq=req;
+  var ov=document.createElement('div');ov.id='citizen-req';
+  ov.style.cssText='position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:#fff;border:2px solid #FFD700;border-radius:20px;padding:12px 18px;z-index:9998;display:flex;align-items:center;gap:10px;box-shadow:0 4px 16px rgba(0,0,0,.2);animation:pop .3s ease;max-width:320px;cursor:pointer';
+  var gd=S.p.inv[req.need]?GOODS[req.need]:null;
+  ov.innerHTML='<div style="font-size:2rem">'+req.citizen+'</div><div style="flex:1"><div style="font-size:.78rem;font-weight:700;margin-bottom:2px">'+req.text+'</div><div style="font-size:.68rem;color:#9EA8B1">需要 '+(gd?gd.e:'')+req.need+' ×'+req.amt+' → 🪙'+req.reward+'</div></div><button style="background:#4CAF50;color:#fff;border:none;border-radius:50px;padding:6px 14px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:inherit">給！</button>';
+  ov.querySelector('button').addEventListener('click',function(e){
+    e.stopPropagation();
+    if(!(S.p.inv[req.need]>=req.amt)){toast('物品不足！');ov.remove();activeCitizenReq=null;return}
+    S.p.inv[req.need]-=req.amt;if(S.p.inv[req.need]<=0)delete S.p.inv[req.need];
+    S.p.coins+=req.reward;S.p.totalCE=(S.p.totalCE||0)+req.reward;
+    saveP();toast(req.citizen+' 謝謝你！+🪙'+req.reward);
+    ov.remove();activeCitizenReq=null;
+  });
+  document.body.appendChild(ov);
+  setTimeout(function(){if(ov.parentNode){ov.remove();activeCitizenReq=null;}},12000);
+}
+
+// ── 4. COLLECTION BOOK ──
+var COLLECTION={
+  crops:{name:'農作物',items:['wheat_g','corn_g','tomato','berry','carrot','potato','pumpkin','cotton','sugarcane','indigo']},
+  goods:{name:'加工品',items:['flour','bread','cake','cookie','pie','butter','cheese','sugar','fabric','sweater','silk']},
+  animals:{name:'動物產品',items:['egg','milk','wool','truffle']},
+};
+function rCollection(){
+  var a=app();a.innerHTML='';a.appendChild(tbH());
+  var pg=document.createElement('div');pg.className='PG FADE';
+  pg.innerHTML='<div style="font-size:.92rem;font-weight:900">📖 收藏圖鑑</div><div style="font-size:.7rem;color:#9EA8B1;margin-top:-8px">收集所有物品！</div>';
+  Object.keys(COLLECTION).forEach(function(catKey){
+    var cat=COLLECTION[catKey];
+    var card=document.createElement('div');card.className='CARD';
+    var total=cat.items.length,owned=cat.items.filter(function(id){return (S.p.inv[id]||0)>0||(S.p._everHad&&S.p._everHad[id])}).length;
+    card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:.82rem;font-weight:700">'+cat.name+'</div><div style="font-size:.72rem;color:#F59E0B;font-weight:700">'+owned+'/'+total+'</div></div>';
+    var grid=document.createElement('div');grid.style.cssText='display:grid;grid-template-columns:repeat(5,1fr);gap:6px';
+    cat.items.forEach(function(id){
+      var gd=GOODS[id];var hasIt=(S.p.inv[id]||0)>0||(S.p._everHad&&S.p._everHad[id]);
+      if(!gd)return; // skip unknown goods
+      var itm=document.createElement('div');itm.style.cssText='text-align:center;padding:6px 2px;border-radius:8px;background:'+(hasIt?'#E8F5E9':'#F5F5F5')+';border:1px solid '+(hasIt?'#A5D6A7':'#E0E0E0');
+      itm.innerHTML='<div style="font-size:1.4rem;filter:'+(hasIt?'none':'grayscale(1) opacity(.3)')+'">'+( gd?gd.e:'?')+'</div><div style="font-size:.48rem;color:'+(hasIt?'#2E7D32':'#ccc')+'">'+( hasIt?gd.n:'???')+'</div>';
+      grid.appendChild(itm);
+    });
+    card.appendChild(grid);pg.appendChild(card);
+  });
+  var bk=document.createElement('button');bk.className='BTN B-WH BW';bk.style.padding='9px';bk.textContent='← 返回';bk.addEventListener('click',function(){go('home')});
+  pg.appendChild(bk);a.appendChild(pg);a.appendChild(bnH('home'));
+}
+
+
+// ── FUN FEATURES ──
+// ============================================================
+// FUN FEATURES PACK
+// ============================================================
+
+// ── 1. LUCKY SPIN ──
+function showLuckySpin(){
+  var spinCost=30+(S.p?S.p.level:1)*5;
+  var prizes=[
+    {e:'🪙',n:'金幣×50',type:'coin',val:50},
+    {e:'🪙',n:'金幣×20',type:'coin',val:20},
+    {e:'⭐',n:'EXP×30',type:'exp',val:30},
+    {e:'🎁',n:'隨機建築',type:'bldg',val:0},
+    {e:'🪙',n:'金幣×100',type:'coin',val:100},
+    {e:'🌟',n:'金幣×200',type:'coin',val:200},
+    {e:'🪙',n:'金幣×10',type:'coin',val:10},
+    {e:'🍀',n:'EXP×50',type:'exp',val:50},
+  ];
+  var ov=document.createElement('div');ov.className='POPUP';
+  var box=document.createElement('div');box.className='PBX';box.style.textAlign='center';
+  box.innerHTML='<div style="font-size:1.1rem;font-weight:900;margin-bottom:4px">🎰 幸運轉盤</div>'+
+    '<div style="font-size:.72rem;color:#9EA8B1;margin-bottom:12px">花費 🪙'+spinCost+' 轉一次</div>';
+  // Canvas wheel
+  var wheelCv=document.createElement('canvas');wheelCv.width=320;wheelCv.height=90;
+  wheelCv.style.cssText='width:100%;border-radius:14px;background:#1B2631;display:block;margin-bottom:12px';
+  box.appendChild(wheelCv);
+  var wctx=wheelCv.getContext('2d');
+  var spinOff=0;
+  function drawWheel(offset){
+    wctx.fillStyle='#1B2631';wctx.fillRect(0,0,320,90);
+    var iW=72,cx=160;
+    var startI=Math.floor(offset/iW)-2;
+    for(var di=startI;di<startI+8;di++){
+      var px=cx+(di-(offset/iW))*iW;
+      if(px<-iW||px>320+iW)continue;
+      var pr=prizes[((di%prizes.length)+prizes.length*100)%prizes.length];
+      wctx.font='36px serif';wctx.textAlign='center';wctx.textBaseline='middle';
+      wctx.fillText(pr.e,px,45);
+    }
+    wctx.strokeStyle='#FFD700';wctx.lineWidth=3;
+    wctx.strokeRect(cx-iW/2-2,2,iW+4,86);
+    wctx.fillStyle='#FFD700';wctx.beginPath();
+    wctx.moveTo(cx-10,0);wctx.lineTo(cx+10,0);wctx.lineTo(cx,16);wctx.closePath();wctx.fill();
+  }
+  drawWheel(0);
+  // Result display
+  var result=document.createElement('div');
+  result.style.cssText='min-height:50px;font-size:.9rem;font-weight:700;color:#2E7D32;margin-bottom:10px';
+  box.appendChild(result);
+  // Spin button
+  var spinBtn=document.createElement('button');spinBtn.className='BTN B-OR BW';spinBtn.style.padding='13px';
+  spinBtn.textContent='🎰 轉動！（🪙'+spinCost+'）';
+  spinBtn.addEventListener('click',function(){
+    if(!S.p||S.p.coins<spinCost){toast('金幣不足！需要🪙'+spinCost+'，你有🪙'+(S.p?S.p.coins:0));return}
+    S.p.coins-=spinCost;saveP();
+    spinBtn.disabled=true;result.innerHTML='';
+    var winIdx=Math.floor(Math.random()*prizes.length);
+    var winner=prizes[winIdx];
+    var iW=72,startOff=spinOff,targetOff=startOff+iW*28+winIdx*iW;
+    var startT=Date.now(),dur=1800;
+    function animate(){
+      var t=Math.min(1,(Date.now()-startT)/dur);
+      var ease=1-Math.pow(1-t,3);
+      spinOff=startOff+(targetOff-startOff)*ease;
+      drawWheel(spinOff);
+      if(t<1){requestAnimationFrame(animate);return;}
+      // Award
+      if(winner.type==='coin'){S.p.coins+=winner.val;S.p.totalCE=(S.p.totalCE||0)+winner.val;}
+      else if(winner.type==='exp'){S.p.exp+=winner.val;checkLv();}
+      else if(winner.type==='bldg'){
+        var bldgs=Object.values(IT).filter(function(b){return!b.lv||S.p.level>=b.lv-2});
+        var rb=bldgs[Math.floor(Math.random()*bldgs.length)];
+        S.p.bldgInv[rb.id]=(S.p.bldgInv[rb.id]||0)+1;winner.n='獲得 '+rb.e+rb.n+'！';
+      }
+      saveP();
+      result.innerHTML='<div style="font-size:2rem;margin-bottom:4px">'+winner.e+'</div><div style="font-size:.95rem">'+winner.n+'</div>';
+      result.style.color=winner.val>=100||winner.type==='bldg'?'#E65100':'#2E7D32';
+      spinBtn.disabled=false;spinBtn.textContent='🎰 再轉一次！（🪙'+spinCost+'）';
+      if(winner.type==='coin'&&winner.val>=100||winner.type==='bldg'){
+        for(var ci=0;ci<6;ci++){(function(d){setTimeout(function(){
+          var dr=document.createElement('div');dr.style.cssText='position:fixed;font-size:1.5rem;pointer-events:none;z-index:9999;animation:df 1.8s ease forwards;top:15%;left:'+Math.round(10+Math.random()*80)+'%';
+          dr.textContent=['🪙','⭐','🎊','✨'][Math.floor(Math.random()*4)];
+          document.body.appendChild(dr);setTimeout(function(){dr.remove()},1900);
+        },d*120)})(ci);}
+      }
+    }
+    animate();
+  });
+  box.appendChild(spinBtn);
+  var cl=document.createElement('button');cl.className='BTN B-WH BW';cl.style.cssText='padding:10px;margin-top:6px;font-size:.85rem';cl.textContent='關閉';cl.addEventListener('click',function(){ov.remove()});
+  box.appendChild(cl);ov.appendChild(box);
+  ov.addEventListener('click',function(e){if(e.target===ov)ov.remove()});
+  document.body.appendChild(ov);
+}
+
+// ── 2. RANDOM TOWN EVENTS ──
+var TOWN_EVENTS=[
+  {e:'☀️',msg:'陽光燦爛！農作物生長加速！',fn:function(p){toast('☀️ 農作物生長加速！')}},
+  {e:'🧙',msg:'旅行魔法師路過，送你金幣！',fn:function(p){var g=20+Math.floor(Math.random()*30);p.coins+=g;p.totalCE=(p.totalCE||0)+g;toast('🧙 旅行魔法師送你 🪙'+g+'！');saveP();}},
+  {e:'🎪',msg:'節日慶典！所有訂單獎勵×2！',fn:function(p){toast('🎪 節日慶典開始！完成訂單獎勵加倍！');S._festivalOn=true;setTimeout(function(){S._festivalOn=false;},120000);}},
+  {e:'⚡',msg:'暴風雨來了！小心農作物！',fn:function(p){toast('⚡ 暴風雨！小心農作物～');}},
+  {e:'🐝',msg:'蜜蜂造訪！花圃產了蜂蜜！',fn:function(p){p.inv.honey=(p.inv.honey||0)+3;saveP();toast('🐝 蜜蜂帶來 3 蜂蜜！');}},
+  {e:'🌈',msg:'彩虹出現！幸運日！所有答題金幣×1.5',fn:function(p){toast('🌈 幸運彩虹！接下來15分鐘答題金幣×1.5！');S._rainbowEnd=Date.now()+900000;}},
+];
+var lastEventTime=0;
+// ── TREASURE CHEST on map ──
+var treasurePos=null, treasureSpawnTime=0;
+function checkTreasureChest(){
+  if(!ISO||!ISO.canvas||S.sc!=='town')return;
+  var now=Date.now();
+  if(!treasurePos&&now-treasureSpawnTime>300000){ // every 5min
+    if(Math.random()>0.7)return;
+    var vis=Math.min(MSZ,(S.p&&S.p.landSize)||20);
+    for(var tries=0;tries<20;tries++){
+      var tc=2+Math.floor(Math.random()*(vis-4));
+      var tr=2+Math.floor(Math.random()*(vis-4));
+      if(!S.p.town[tr*MSZ+tc]){treasurePos={c:tc,r:tr};treasureSpawnTime=now;break}
+    }
+  }
+}
+function drawTreasure(ctx,sx,sy){
+  if(!treasurePos)return;
+  // Pulsing effect
+  var pulse=0.85+Math.sin(Date.now()/400)*0.15;
+  ctx.save();ctx.globalAlpha=pulse;
+  ctx.font=(22*ISO.zoom)+'px serif';ctx.textAlign='center';ctx.textBaseline='bottom';
+  ctx.fillText('💰',sx,sy+ISO.TH*ISO.zoom);
+  // Glow ring
+  ctx.strokeStyle='#FFD700';ctx.lineWidth=2;ctx.globalAlpha=pulse*0.5;
+  ctx.beginPath();ctx.arc(sx,sy+ISO.TH*ISO.zoom*0.5,14*ISO.zoom,0,Math.PI*2);ctx.stroke();
+  ctx.restore();
+}
+function claimTreasure(){
+  var reward=20+Math.floor(Math.random()*80);
+  S.p.coins+=reward;S.p.totalCE=(S.p.totalCE||0)+reward;
+  treasurePos=null;treasureSpawnTime=Date.now();
+  saveP();
+  // Big popup
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;top:20%;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#F9A825,#E65100);color:#fff;border-radius:20px;padding:20px 30px;z-index:9999;text-align:center;animation:pop .4s ease;box-shadow:0 6px 24px rgba(0,0,0,.4)';
+  ov.innerHTML='<div style="font-size:3rem">💰</div><div style="font-size:1.1rem;font-weight:900;margin:6px 0">寶箱！</div><div style="font-size:1.6rem;font-weight:900;color:#FFD700">+🪙'+reward+'</div>';
+  document.body.appendChild(ov);setTimeout(function(){ov.remove()},2500);
+  toast('💰 發現寶藏！+🪙'+reward);
+}
+
+function checkRandomEvent(){
+  var now=Date.now();
+  if(now-lastEventTime<180000)return; // min 3 min between events
+  if(Math.random()>0.15)return; // 15% chance per check
+  lastEventTime=now;
+  var ev=TOWN_EVENTS[Math.floor(Math.random()*TOWN_EVENTS.length)];
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;top:12%;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#2E7D32,#1565C0);color:#fff;border-radius:20px;padding:18px 24px;z-index:9998;text-align:center;animation:pop .4s ease;box-shadow:0 6px 24px rgba(0,0,0,.4);max-width:300px;cursor:pointer';
+  ov.innerHTML='<div style="font-size:2.5rem;margin-bottom:8px">'+ev.e+'</div><div style="font-size:.95rem;font-weight:700;margin-bottom:4px">隨機事件！</div><div style="font-size:.78rem;opacity:.9">'+ev.msg+'</div><div style="font-size:.65rem;opacity:.7;margin-top:8px">點擊領取</div>';
+  ov.addEventListener('click',function(){ev.fn(S.p);ov.remove();});
+  document.body.appendChild(ov);
+  setTimeout(function(){if(ov.parentNode)ov.remove();},8000);
+}
+
+// ── 3. QUIZ POWER-UPS ──
+var POWERUPS={
+  freeze: {e:'❄️',n:'時間凍結',desc:'暫停計時30秒',c:60,uses:0},
+  double: {e:'💰',n:'雙倍金幣',desc:'下一題金幣×2',c:40,uses:0},
+  reveal: {e:'💡',n:'提示',desc:'顯示答案範圍',c:30,uses:0},
+};
+function buyPowerup(id){
+  var pu=POWERUPS[id];if(!pu)return;
+  if(S.p.coins<pu.c){toast('金幣不足！');return}
+  S.p.coins-=pu.c;
+  if(!S.p.powerups)S.p.powerups={};
+  S.p.powerups[id]=(S.p.powerups[id]||0)+1;
+  saveP();toast('獲得 '+pu.e+' '+pu.n+'！');
+  rQuiz();
+}
+function usePowerup(id){
+  if(!S.p.powerups||!S.p.powerups[id])return false;
+  S.p.powerups[id]--;if(S.p.powerups[id]<=0)delete S.p.powerups[id];
+  saveP();return true;
+}
+function showPowerupMenu(){
+  var ov=document.createElement('div');ov.className='POPUP';
+  var box=document.createElement('div');box.className='PBX';
+  box.innerHTML='<div style="font-size:1rem;font-weight:900;margin-bottom:12px">⚡ 答題道具</div>';
+  Object.keys(POWERUPS).forEach(function(id){
+    var pu=POWERUPS[id];var owned=(S.p.powerups&&S.p.powerups[id])||0;
+    var row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #F0F0F0';
+    row.innerHTML='<div style="font-size:1.8rem">'+pu.e+'</div><div style="flex:1"><div style="font-weight:700;font-size:.88rem">'+pu.n+'</div><div style="font-size:.68rem;color:#9EA8B1">'+pu.desc+'</div><div style="font-size:.65rem;color:#FF6B35">持有：'+owned+'個</div></div>';
+    var btn=document.createElement('button');btn.className='BTN B-GD';btn.style.cssText='padding:6px 12px;font-size:.75rem;background:#FFD700;color:#000';btn.textContent='🪙'+pu.c+' 買';
+    btn.addEventListener('click',function(){buyPowerup(id);ov.remove();});
+    row.appendChild(btn);box.appendChild(row);
+  });
+  var cl=document.createElement('button');cl.className='BTN B-WH BW';cl.style.cssText='padding:10px;margin-top:12px';cl.textContent='關閉';cl.addEventListener('click',function(){ov.remove()});
+  box.appendChild(cl);ov.appendChild(box);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove()});
+  document.body.appendChild(ov);
+}
+
+// ── 4. BOSS CHALLENGE ──
+function showBossChallenge(){
+  var p=S.p;
+  var ov=document.createElement('div');ov.className='POPUP';
+  var box=document.createElement('div');box.className='PBX';box.style.textAlign='center';
+  var bossLevel=Math.max(1,Math.floor(p.level/2));
+  var reward=200+bossLevel*50;
+  box.innerHTML='<div style="font-size:3rem;margin-bottom:8px">👹</div>'+
+    '<div style="font-size:1.1rem;font-weight:900;color:#C62828;margin-bottom:6px">數學魔王挑戰！</div>'+
+    '<div style="font-size:.78rem;color:#4A5568;margin-bottom:14px">20題限時10分鐘，全對才能打敗魔王！<br>獎勵：<strong>🪙'+reward+'</strong> + 特殊稱號</div>'+
+    '<div style="background:#FEF2F2;border-radius:10px;padding:10px;margin-bottom:14px;font-size:.72rem;color:#C62828">⚠️ 失敗不扣錢，但需等24小時再挑戰</div>';
+  var btn=document.createElement('button');btn.className='BTN B-RD BW';btn.style.padding='14px';btn.textContent='⚔️ 接受挑戰！';
+  btn.addEventListener('click',function(){
+    var lastBoss=localStorage.getItem('mt_boss_'+p.name);
+    if(lastBoss&&Date.now()-parseInt(lastBoss)<86400000){toast('今天已挑戰過！明天再來！');ov.remove();return}
+    ov.remove();
+    // Start boss quiz
+    S.mode='add';S.grade='d3';S.tl=10;S._bossMode=true;S._bossReward=reward;
+    startQ();
+  });
+  box.appendChild(btn);
+  var cl=document.createElement('button');cl.className='BTN B-WH BW';cl.style.cssText='padding:10px;margin-top:8px';cl.textContent='不敢…';cl.addEventListener('click',function(){ov.remove()});
+  box.appendChild(cl);ov.appendChild(box);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove()});
+  document.body.appendChild(ov);
+}
+
+
 render();
 // Pre-load OCR in background after 3 seconds
 setTimeout(function(){if(typeof Tesseract!=='undefined')initOCR()},3000);
 if('serviceWorker' in navigator)window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})});
-
-
-
 </script>
 </body>
 </html>
