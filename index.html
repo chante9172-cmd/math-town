@@ -118,7 +118,7 @@ var SUPA_KEY = ''; // 例：eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 // ============================================================
 // SUPABASE SYNC - fill in your project URL and anon key
 // ============================================================
-var SUPA_URL='';var SUPA_KEY=''; // loaded from config script above
+// SUPA_URL and SUPA_KEY defined in config script
 var supabase = null;
 
 function initSupabase(){
@@ -4398,10 +4398,10 @@ function showLuckySpin(){
 // ── 2. RANDOM TOWN EVENTS ──
 var TOWN_EVENTS=[
   {e:'☀️',msg:'陽光燦爛！農作物生長加速！',fn:function(){toast('☀️ 農作物生長加速！');}},
-  {e:'🧙',msg:'旅行魔法師路過，送你金幣！',fn:function(){var g=20+Math.floor(Math.random()*30);S.S.p.coins+=g;S.S.p.totalCE=(S.S.p.totalCE||0)+g;toast('🧙 旅行魔法師送你 🪙'+g+'！');saveP();}},
+  {e:'🧙',msg:'旅行魔法師路過，送你金幣！',fn:function(){var g=20+Math.floor(Math.random()*30);S.p.coins+=g;S.p.totalCE=(S.p.totalCE||0)+g;toast('🧙 旅行魔法師送你 🪙'+g+'！');saveP();}},
   {e:'🎪',msg:'節日慶典！所有訂單獎勵×2！',fn:function(){toast('🎪 節日慶典開始！完成訂單獎勵加倍！');S._festivalOn=true;setTimeout(function(){S._festivalOn=false;},120000);}},
   {e:'⚡',msg:'暴風雨來了！小心農作物！',fn:function(){toast('⚡ 暴風雨！小心農作物～');}},
-  {e:'🐝',msg:'蜜蜂造訪！花圃產了蜂蜜！',fn:function(){S.S.p.inv.honey=(S.S.p.inv.honey||0)+3;saveP();toast('🐝 蜜蜂帶來 3 蜂蜜！');}},
+  {e:'🐝',msg:'蜜蜂造訪！花圃產了蜂蜜！',fn:function(){S.p.inv.honey=(S.p.inv.honey||0)+3;saveP();toast('🐝 蜜蜂帶來 3 蜂蜜！');}},
   {e:'🌈',msg:'彩虹出現！幸運日！所有答題金幣×1.5',fn:function(){toast('🌈 幸運彩虹！接下來15分鐘答題金幣×1.5！');S._rainbowEnd=Date.now()+900000;}},
 ];
 var lastEventTime=0;
@@ -4544,7 +4544,11 @@ function showAvatarPicker(){
 
 // Auto-init Supabase
 initSupabase();
-render();
+try{render();}catch(e){
+  var errDiv=document.getElementById('app')||document.body;
+  errDiv.style.cssText='padding:20px;color:#fff;font-size:.85rem;white-space:pre-wrap';
+  errDiv.textContent='JS Error: '+e.message+'\n\n'+e.stack;
+}
 // Pre-load OCR in background after 3 seconds
 setTimeout(function(){if(typeof Tesseract!=='undefined')initOCR()},3000);
 if('serviceWorker' in navigator)window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})});
