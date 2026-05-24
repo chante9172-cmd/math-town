@@ -868,7 +868,7 @@ async function saveP(){if(!S.p)return;var k='mt_p_'+S.p.name,d=JSON.stringify(S.
 async function loadPD(name){var k='mt_p_'+name;try{if(window.storage){var r=await window.storage.get(k,true);if(r&&r.value)return JSON.parse(r.value)}}catch(e){}try{var d=localStorage.getItem(k);if(d)return JSON.parse(d)}catch(e){}return null}
 function today(){return new Date().toISOString().slice(0,10)}
 function expN(lv){return lv*100}
-function newP(name,pin,disp){return{name:name,pin:hPin(pin),displayName:disp||name,coins:150,level:1,exp:0,totalC:0,totalA:0,bestStreak:0,totalCE:150,inv:{},bldgInv:{},town:(function(){var t=Array(MSZ*MSZ).fill(null);t[5*MSZ+5]='WH';return t}()),landSize:20,farms:{},factories:{},animalSlots:{},orders:[],collect:{},mgDone:{},settings:{hw:false},loginDays:1,lastDay:today(),warehouseCap:100,achievements:{},dailyQuest:null,questDone:false}}
+function newP(name,pin,disp){return{name:name,pin:hPin(pin),displayName:disp||name,av:'🧒',coins:150,level:1,exp:0,totalC:0,totalA:0,bestStreak:0,totalCE:150,inv:{},bldgInv:{},town:(function(){var t=Array(MSZ*MSZ).fill(null);t[5*MSZ+5]='WH';return t}()),landSize:20,farms:{},factories:{},animalSlots:{},orders:[],collect:{},mgDone:{},settings:{hw:false},loginDays:1,lastDay:today(),warehouseCap:100,achievements:{},dailyQuest:null,questDone:false}}
 function rnd(a,b){return Math.floor(Math.random()*(b-a+1))+a}
 function pick(a){return a[rnd(0,a.length-1)]}
 function fmt(s){if(s<0)s=0;return('0'+Math.floor(s/60)).slice(-2)+':'+('0'+(s%60)).slice(-2)}
@@ -2671,6 +2671,7 @@ async function doLogin(){
     ];
     p.dailyQuest={day:today(),quest:quests[Math.floor(Math.random()*quests.length)],done:false};
   }
+  if(!p.av)p.av='🧒';
   S.p=p;await saveP();startTick();go('home')
 }
 function rHome(){
@@ -2943,7 +2944,14 @@ function placeB(idx){
   if(S.placing==='WH'&&p.town.some(function(t){return t==='WH'||(t&&t.indexOf('WH_PART_')===0)})){
     toast('倉庫已存在！每個小鎮只能有一個');S.placing=null;rTown();return;
   }
-  p.town[idx]=S.placing;p.bldgInv[S.placing]--;if(p.bldgInv[S.placing]<=0)delete p.bldgInv[S.placing];
+  // Multi-tile check
+  if(MULTITILE[S.placing]){
+    if(!canPlaceMulti(idx,S.placing)){toast('空間不夠！請選其他位置');return;}
+    placeMulti(idx,S.placing);
+  } else {
+    p.town[idx]=S.placing;
+  }
+  p.bldgInv[S.placing]--;if(p.bldgInv[S.placing]<=0)delete p.bldgInv[S.placing];
   if(b&&(b.coin||b.exp))p.collect[idx]={lastD:''};
   if(b&&b.cat==='farm')p.farms[idx]={crop:b.crop,done:false,endTime:0};
   if(b&&b.cat==='animal')p.animalSlots[idx]={animal:b.animal,fed:false,ready:false};
@@ -3808,11 +3816,13 @@ var SYNC_KEY = '$2a$10$placeholder'; // public read bin
 function exportSaveCode(){
   var p=S.p;
   var lite={
-    n:p.displayName,lv:p.level,exp:p.exp,coins:p.coins,
-    town:p.town,inv:p.inv,bldgInv:p.bldgInv,farms:p.farms,
+    n:p.displayName,name:p.name,lv:p.level,level:p.level,exp:p.exp,coins:p.coins,
+    town:p.town,inv:p.inv,bldgInv:p.bldgInv,farms:p.farms,factories:p.factories,
+    animalSlots:p.animalSlots,orders:p.orders,collect:p.collect,mgDone:p.mgDone,
     achievements:p.achievements,totalCE:p.totalCE,totalA:p.totalA,
     totalC:p.totalC,loginDays:p.loginDays,settings:p.settings,
-    warehouseCap:p.warehouseCap,_everHad:p._everHad
+    warehouseCap:p.warehouseCap,_everHad:p._everHad,av:p.av,pin:p.pin,
+    landSize:p.landSize,totalOrders:p.totalOrders,bestStreak:p.bestStreak
   };
   try{return btoa(unescape(encodeURIComponent(JSON.stringify(lite))))}
   catch(e){return null}
@@ -3822,6 +3832,20 @@ function importSaveCode(code){
   try{
     var data=JSON.parse(decodeURIComponent(escape(atob(code.trim()))));
     if(!data.n)throw new Error('invalid');
+    // Ensure name field exists (sync code stores displayName as .n)
+    if(!data.name)data.name=data.n.toLowerCase().replace(/[^a-z0-9]/g,'_');
+    if(!data.displayName)data.displayName=data.n;
+    if(!data.av)data.av='🧒';
+    if(!data.town)data.town=Array(MSZ*MSZ).fill(null);
+    if(!data.inv)data.inv={};
+    if(!data.bldgInv)data.bldgInv={};
+    if(!data.farms)data.farms={};
+    if(!data.factories)data.factories={};
+    if(!data.animalSlots)data.animalSlots={};
+    if(!data.orders)data.orders=[];
+    if(!data.collect)data.collect={};
+    if(!data.mgDone)data.mgDone={};
+    if(!data.settings)data.settings={hw:false};
     return data;
   }catch(e){return null}
 }
@@ -3859,7 +3883,7 @@ function rAccountSync(){
   var myCard=mkDiv('CARD');myCard.style.cssText='background:linear-gradient(135deg,#E8F5E9,#E3F2FD)';
   myCard.innerHTML='<div style="font-size:.8rem;font-weight:700;margin-bottom:6px">目前帳號</div>'+
     '<div style="display:flex;align-items:center;gap:10px">'+
-    '<div style="font-size:2rem">'+S.p.av+'</div>'+
+    '<div style="font-size:2rem">'+(S.p.av||'🧒')+'</div>'+
     '<div><div style="font-weight:700">'+S.p.displayName+'</div>'+
     '<div style="font-size:.68rem;color:#9EA8B1">Lv.'+S.p.level+' | 🪙'+S.p.coins+'</div></div></div>';
   pg.appendChild(myCard);
@@ -3949,14 +3973,21 @@ function rAccountSync(){
     var confBtn=document.createElement('button');confBtn.className='BTN B-OR BW';confBtn.style.padding='12px';confBtn.textContent='確認載入';
     confBtn.addEventListener('click',function(){
       // Merge: keep displayName from imported, load all data
-      var pName=data.n;
-      data.lastDay=today(); // reset daily so login bonus triggers
+      var pName=data.name||data.n;
+      data.lastDay=today();
+      data.name=pName;
+      data.displayName=data.displayName||data.n||pName;
       localStorage.setItem('mt_p_'+pName, JSON.stringify(data));
-      // Switch to this account
+      // Add to accounts list
+      var accs=getAccs();
+      if(!accs.find(function(a){return a.name===pName})){
+        accs.push({name:pName,displayName:data.displayName,pinHash:data.pin||''});
+        saveAccs();
+      }
       S.p=data;
       ov.remove();
       saveP();
-      toast('✅ 已載入帳號：'+pName+'！');
+      toast('✅ 已載入帳號：'+data.displayName+'！');
       render();
     });
     var canBtn=document.createElement('button');canBtn.className='BTN B-WH BW';canBtn.style.cssText='padding:10px;margin-top:6px';canBtn.textContent='取消';canBtn.addEventListener('click',function(){ov.remove()});
@@ -3978,10 +4009,10 @@ function rAccountSync(){
       var row=document.createElement('div');row.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #F0F0F0';
       try{
         var pd=JSON.parse(localStorage.getItem('mt_p_'+name));
-        row.innerHTML='<div><div style="font-weight:700;font-size:.82rem">'+pd.av+' '+pd.displayName+'</div><div style="font-size:.65rem;color:#9EA8B1">Lv.'+pd.level+'</div></div>';
+        row.innerHTML='<div><div style="font-weight:700;font-size:.82rem">'+(pd.av||'🧒')+' '+pd.displayName+'</div><div style="font-size:.65rem;color:#9EA8B1">Lv.'+pd.level+'</div></div>';
         var swBtn=document.createElement('button');swBtn.style.cssText='padding:5px 12px;background:'+(name===S.p.displayName?'#E0E0E0':'#4CAF50')+';color:'+(name===S.p.displayName?'#888':'#fff')+';border:none;border-radius:50px;font-size:.72rem;font-weight:700;cursor:pointer;font-family:inherit';
-        swBtn.textContent=name===S.p.displayName?'目前使用':'切換';
-        if(name!==S.p.displayName){swBtn.addEventListener('click',(function(n){return function(){switchAccount(n)}})(name))}
+        swBtn.textContent=name===S.p.name?'目前使用':'切換';
+        if(name!==S.p.name){swBtn.addEventListener('click',(function(n){return function(){switchAccount(n)}})(name))}
         row.appendChild(swBtn);
       }catch(e){row.innerHTML='<div>'+name+'</div>'}
       multiCard.appendChild(row);
