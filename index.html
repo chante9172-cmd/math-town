@@ -864,6 +864,7 @@ function getKey(){try{return localStorage.getItem('mt_k')||''}catch(e){return''}
 async function saveP(){if(!S.p)return;var k='mt_p_'+S.p.name,d=JSON.stringify(S.p);try{if(window.storage)await window.storage.set(k,d,true)}catch(e){}try{localStorage.setItem(k,d)}catch(e){
   if(window._supabaseAutoSync)window._supabaseAutoSync();
 }
+} // close saveP
 async function loadPD(name){var k='mt_p_'+name;try{if(window.storage){var r=await window.storage.get(k,true);if(r&&r.value)return JSON.parse(r.value)}}catch(e){}try{var d=localStorage.getItem(k);if(d)return JSON.parse(d)}catch(e){}return null}
 function today(){return new Date().toISOString().slice(0,10)}
 function expN(lv){return lv*100}
@@ -4551,7 +4552,6 @@ try{render();}catch(e){
 }
 // Pre-load OCR in background after 3 seconds
 setTimeout(function(){if(typeof Tesseract!=='undefined')initOCR()},3000);
-if('serviceWorker' in navigator)window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})});
-}</script>
+if('serviceWorker' in navigator)window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})});</script>
 </body>
 </html>
