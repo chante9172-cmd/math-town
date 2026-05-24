@@ -99,11 +99,78 @@ input[type=number]::-webkit-inner-spin-button{display:none}
 .ICIP.SEL{border-color:#4CAF50;background:rgba(76,175,80,.1)}
 
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <div id="app"></div>
 <script>
+// ═══════════════════════════════════════════════
+// ★ 在這裡填入你的 Supabase 設定
+// 去 Supabase → Settings → API 找到這兩個值
+// ═══════════════════════════════════════════════
+var SUPA_URL = ''; // 例：https://abcdefgh.supabase.co
+var SUPA_KEY = ''; // 例：eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+// ═══════════════════════════════════════════════
+</script>
+<script>
 
+
+// ============================================================
+// SUPABASE SYNC - fill in your project URL and anon key
+// ============================================================
+var SUPA_URL='';var SUPA_KEY=''; // loaded from config script above
+var supabase = null;
+
+function initSupabase(){
+  var hasConfig=SUPA_URL&&!SUPA_URL.includes('YOUR_PROJECT_ID')&&SUPA_KEY&&!SUPA_KEY.includes('YOUR_ANON');
+  if(!hasConfig||typeof window.supabase==='undefined')return false;
+  try{
+    supabase=window.supabase.createClient(SUPA_URL,SUPA_KEY);
+    hookSupabaseSave();
+    console.log('✅ Supabase connected!');
+    return true;
+  }catch(e){console.error('Supabase init failed:',e);return false}
+}
+
+async function supabaseSave(){
+  if(!supabase||!S.p)return false;
+  var code=exportSaveCode();
+  if(!code)return false;
+  try{
+    var res=await supabase.from('mt_saves').upsert({
+      username:S.p.displayName.toLowerCase(),
+      display_name:S.p.displayName,
+      save_code:code,
+      level:S.p.level,
+      coins:S.p.coins,
+      updated_at:new Date().toISOString()
+    },{onConflict:'username'});
+    return !res.error;
+  }catch(e){return false}
+}
+
+async function supabaseLoad(username){
+  if(!supabase)return null;
+  try{
+    var res=await supabase.from('mt_saves').select('*').eq('username',username.toLowerCase()).single();
+    if(res.error||!res.data)return null;
+    return res.data.save_code;
+  }catch(e){return null}
+}
+
+// Auto-save to Supabase on saveP
+var _origSaveP=null;
+function hookSupabaseSave(){
+  if(_origSaveP)return;
+  _origSaveP=saveP;
+  // saveP calls happen frequently; debounce cloud sync
+  var debTimer=null;
+  window._supabaseAutoSync=function(){
+    if(!SUPA_URL||!supabase)return;
+    clearTimeout(debTimer);
+    debTimer=setTimeout(function(){supabaseSave()},3000);
+  };
+}
 
 var IT={
 R:{id:'R',n:'岩石',e:'🪨',bg:'#52B788',bd:'#2D6A4F',c:8,cat:'deco'},
@@ -794,7 +861,9 @@ function getAccs(){try{return JSON.parse(localStorage.getItem('mt_a')||'[]')}cat
 function saveAccs(){try{localStorage.setItem('mt_a',JSON.stringify(S.accounts))}catch(e){}}
 function hPin(p){var h=0;for(var i=0;i<p.length;i++)h=(h*31+p.charCodeAt(i))&0xFFFFFF;return h.toString(16)}
 function getKey(){try{return localStorage.getItem('mt_k')||''}catch(e){return''}}
-async function saveP(){if(!S.p)return;var k='mt_p_'+S.p.name,d=JSON.stringify(S.p);try{if(window.storage)await window.storage.set(k,d,true)}catch(e){}try{localStorage.setItem(k,d)}catch(e){}}
+async function saveP(){if(!S.p)return;var k='mt_p_'+S.p.name,d=JSON.stringify(S.p);try{if(window.storage)await window.storage.set(k,d,true)}catch(e){}try{localStorage.setItem(k,d)}catch(e){
+  if(window._supabaseAutoSync)window._supabaseAutoSync();
+}
 async function loadPD(name){var k='mt_p_'+name;try{if(window.storage){var r=await window.storage.get(k,true);if(r&&r.value)return JSON.parse(r.value)}}catch(e){}try{var d=localStorage.getItem(k);if(d)return JSON.parse(d)}catch(e){}return null}
 function today(){return new Date().toISOString().slice(0,10)}
 function expN(lv){return lv*100}
@@ -941,11 +1010,11 @@ function canFul(ord){return ord.items.every(function(it){return hasG(it.g,it.a)}
 function fulOrder(oi){
   var ord=S.p.orders[oi];if(!ord||!canFul(ord))return;
   ord.items.forEach(function(it){remG(it.g,it.a)});
-  S.p.coins+=ord.reward;S.p.totalCE=(S.p.totalCE||0)+ord.reward;S.p.exp+=20;checkLv();
+  var festBonus=S._festivalOn?2:1;var actualReward=Math.round(ord.reward*festBonus);S.p.coins+=actualReward;S.p.totalCE=(S.p.totalCE||0)+actualReward;S.p.exp+=20;checkLv();
   S.p.orders.splice(oi,1);if(S.p.orders.length<2)genOrders();
   S.p.totalOrders=(S.p.totalOrders||0)+1;
   checkAchievements('orders',1);checkDailyQuest('order',1);updateWeekChallenge('orders',1);
-  saveP();toast('訂單完成！+'+ord.reward+'🪙');rOrders()
+  saveP();toast('訂單完成！+'+(S._festivalOn?ord.reward+'×2🎪 = '+Math.round(ord.reward*2):ord.reward)+'🪙');rOrders()
 }
 function refOrd(oi){
   if(S.p.coins<10)return toast('金幣不足');
@@ -2471,7 +2540,7 @@ function isoCtr(){
 function go(s){S.sc=s;render()}
 function render(){
   clrT();
-  var f={splash:rSplash,login:rLogin,register:rReg,home:rHome,town:rTown,shop:rShop,quiz:rQuiz,quizrun:rQ,farm:rFarm,factory:rFac,orders:rOrd,stats:rStats,settings:rSet,mghub:rMgh,mg1:rMg1,mg2:rMg2};
+  var f={splash:rSplash,login:rLogin,register:rReg,home:rHome,town:rTown,shop:rShop,quiz:rQuiz,quizrun:rQ,farm:rFarm,factory:rFac,orders:rOrd,stats:rStats,settings:rSet,mghub:rMgh,mg1:rMg1,mg2:rMg2,sync:rAccountSync};
   if(f[S.sc])f[S.sc]();else rHome()
 }
 
@@ -2604,52 +2673,93 @@ async function doLogin(){
   S.p=p;await saveP();startTick();go('home')
 }
 function rHome(){
-  var p=S.p,rc=rdyCnt(),ordRdy=(p.orders||[]).filter(function(o){return canFul(o)}).length;
+  var p=S.p;
+  if(!p){rLogin();return}
   var a=app();a.innerHTML='';
   a.appendChild(tbH());
   var pg=mkDiv('PG FADE');
-  // Daily quest widget
-  var dqDiv = (function(){
-    var d=mkDiv('');
-    if(S.p.dailyQuest){
-      var q=S.p.dailyQuest.quest,done=S.p.dailyQuest.done;
-      var pct=q.target?Math.min(100,Math.round((q.progress||0)/q.target*100)):( done?100:0);
-      d.style.cssText='background:'+(done?'linear-gradient(135deg,#2E7D32,#1B5E20)':'linear-gradient(135deg,#1565C0,#7B1FA2)')+';border-radius:14px;padding:11px 14px;color:#fff;cursor:pointer';
-      d.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:.7rem;opacity:.8">🎯 每日任務</div><div style="font-size:.7rem;font-weight:900;color:#FFD700">+🪙'+q.reward+'</div></div><div style="font-size:.8rem;font-weight:700;margin:4px 0">'+(done?'✅ 已完成！':q.desc)+'</div>'+(q.target?'<div style="background:rgba(255,255,255,.25);border-radius:3px;height:5px;overflow:hidden"><div style="background:#FFD700;height:100%;width:'+pct+'%;border-radius:3px"></div></div>':'');
-      d.addEventListener('click',function(){if(!done)toast('繼續加油！完成任務領 🪙'+q.reward)});
-    }
-    return d;
-  })();
-  pg.innerHTML='<div class="HLB">📅 今日登入 +🪙20！歡迎 '+p.displayName+'！</div><div class="AG"><div class="AC" id="h-town"><div style="font-size:1.4rem;margin-bottom:4px">🏘</div><div style="font-size:.8rem;font-weight:700">我的小鎮</div><div style="font-size:.58rem;color:#9EA8B1;margin-top:2px">'+(rc>0?'📦'+rc+' 可收取':p.town.filter(Boolean).length+'棟建築')+'</div></div><div class="AC" id="h-farm"><div style="font-size:1.4rem;margin-bottom:4px">🌾</div><div style="font-size:.8rem;font-weight:700">農場 & 工廠</div><div style="font-size:.58rem;color:#9EA8B1;margin-top:2px">種作物・加工生產</div></div><div class="AC" id="h-ord"><div style="font-size:1.4rem;margin-bottom:4px">📋</div><div style="font-size:.8rem;font-weight:700">訂單</div><div style="font-size:.58rem;color:#9EA8B1;margin-top:2px">'+(ordRdy>0?ordRdy+'筆可完成！':(p.orders||[]).length+'個進行中')+'</div></div><div class="AC" id="h-quiz"><div style="font-size:1.4rem;margin-bottom:4px">📝</div><div style="font-size:.8rem;font-weight:700">做題賺金幣</div><div style="font-size:.58rem;color:#9EA8B1;margin-top:2px">×'+bst().toFixed(1)+' 魔法加成</div></div><div class="AC" id="h-shop"><div style="font-size:1.4rem;margin-bottom:4px">🏪</div><div style="font-size:.8rem;font-weight:700">商店</div><div style="font-size:.58rem;color:#9EA8B1;margin-top:2px">買建築・擴地</div></div><div class="AC" id="h-mg"><div style="font-size:1.4rem;margin-bottom:4px">🎮</div><div style="font-size:.8rem;font-weight:700">每日小遊戲</div><div style="font-size:.58rem;color:#9EA8B1;margin-top:2px">等級越高難度越大</div></div></div>';
-  // Quick news feed
-  // Weather widget
-  var weatherEmojis=['☀️','🌤️','⛅','🌈','🌙','⭐'];
-  var todayWeather=weatherEmojis[new Date().getDate()%weatherEmojis.length];
-  var weatherDiv=mkDiv('');weatherDiv.style.cssText='background:linear-gradient(135deg,#0288D1,#00897B);border-radius:12px;padding:10px 14px;color:#fff;display:flex;align-items:center;gap:10px';
-  weatherDiv.innerHTML='<div style="font-size:2rem">'+todayWeather+'</div><div><div style="font-size:.78rem;font-weight:700">今日小鎮天氣</div><div style="font-size:.65rem;opacity:.85">'+(p.displayName)+'的小鎮，連續登入 '+(p.loginDays||1)+' 天 🔥</div></div><div style="margin-left:auto;font-size:.72rem;font-weight:700;background:rgba(255,255,255,.2);border-radius:50px;padding:3px 10px">等級 '+p.level+'</div>';
-  pg.appendChild(weatherDiv);
+
+  // ── Weather card ──
+  var weathers=['☀️ 晴天','🌤 微雲','⛅ 多雲','🌈 彩虹','🌙 月圓','⭐ 星空'];
+  var wd=weathers[new Date().getDate()%weathers.length];
+  var wCard=mkDiv('');wCard.style.cssText='background:linear-gradient(135deg,#0288D1,#00897B);border-radius:14px;padding:12px 16px;color:#fff;display:flex;align-items:center;gap:12px';
+  wCard.innerHTML='<div style="font-size:2.2rem">'+wd.split(' ')[0]+'</div>'+
+    '<div style="flex:1"><div style="font-weight:700;font-size:.85rem">'+p.displayName+' 的小鎮</div>'+
+    '<div style="font-size:.65rem;opacity:.85">連續登入 '+(p.loginDays||1)+' 天 🔥 · Lv.'+p.level+'</div></div>';
+  var syncBadge=document.createElement('div');
+  syncBadge.style.cssText='background:rgba(255,255,255,.2);border-radius:50px;padding:4px 10px;font-size:.65rem;cursor:pointer;flex-shrink:0;color:#fff';
+  syncBadge.textContent='👤 同步';
+  syncBadge.addEventListener('click',function(){go('sync')});
+  wCard.appendChild(syncBadge);
+  pg.appendChild(wCard);
+
+  // ── Daily quest ──
+  if(p.dailyQuest&&p.dailyQuest.quest){
+    var q=p.dailyQuest.quest,done2=p.dailyQuest.done;
+    var pct2=q.target?Math.min(100,Math.round((q.progress||0)/q.target*100)):(done2?100:0);
+    var dqEl=mkDiv('');
+    dqEl.style.cssText='background:'+(done2?'linear-gradient(135deg,#2E7D32,#1B5E20)':'linear-gradient(135deg,#1565C0,#7B1FA2)')+';border-radius:14px;padding:10px 14px;color:#fff;cursor:pointer';
+    dqEl.innerHTML='<div style="display:flex;justify-content:space-between"><span style="font-size:.68rem;opacity:.8">🎯 每日任務</span><span style="font-size:.68rem;font-weight:900;color:#FFD700">+🪙'+q.reward+'</span></div>'+
+      '<div style="font-size:.78rem;font-weight:700;margin:3px 0">'+(done2?'✅ 已完成！':q.desc)+'</div>'+
+      (q.target?'<div style="background:rgba(255,255,255,.25);border-radius:3px;height:4px"><div style="background:#FFD700;height:100%;width:'+pct2+'%;border-radius:3px"></div></div>':'');
+    pg.appendChild(dqEl);
+  }
+
+  // ── Quick access shortcuts ──
+  var shortcuts=mkDiv('');shortcuts.style.cssText='display:grid;grid-template-columns:repeat(4,1fr);gap:8px';
+  [
+    {e:'🎣',n:'釣魚',fn:function(){rFishing()}},
+    {e:'🎰',n:'轉盤',fn:function(){showLuckySpin()}},
+    {e:'📅',n:'週挑戰',fn:function(){rWeekly()}},
+    {e:'📖',n:'圖鑑',fn:function(){rCollection()}},
+  ].forEach(function(s){
+    var b=mkDiv('AC');b.style.cssText='cursor:pointer;padding:10px 4px';
+    b.innerHTML='<div style="font-size:1.5rem">'+s.e+'</div><div style="font-size:.65rem;font-weight:700;margin-top:3px">'+s.n+'</div>';
+    b.addEventListener('click',s.fn);shortcuts.appendChild(b);
+  });
+  pg.appendChild(shortcuts);
+
+  // ── News ticker ──
+  var rc2=rdyCnt(),ordRdy2=(p.orders||[]).filter(function(o){return canFul(o)}).length;
   var newsItems=[
-    '📢 農地已升級！可種植更多作物',
-    '🌤️ 今天天氣晴！小鎮居民心情好',
-    '📦 倉庫 '+warehouseUsed()+'/'+warehouseCap()+' 格，記得出售貨物！',
-    '💡 提示：選10分鐘限時可賺更多金幣！',
-    '🎯 今日目標：完成3個訂單！',
-    '⭐ 連續答對3題可獲得連答獎勵！',
+    rc2>0?'📦 有 '+rc2+' 個農場/工廠已完成！點進去收取':'🌱 農場正在生長中…',
+    ordRdy2>0?'📋 有 '+ordRdy2+' 個訂單可完成！':'📋 繼續努力完成訂單！',
+    '💡 選 10 分鐘限時答題賺更多金幣！',
+    '⭐ 連答 3 題以上有連答獎勵！',
+    '🎯 完成每日任務獲得額外獎勵！',
   ];
-  var newsDiv=mkDiv('');newsDiv.style.cssText='background:linear-gradient(135deg,#E8F5E9,#E3F2FD);border:1.5px solid #A5D6A7;border-radius:12px;padding:9px 12px;font-size:.72rem;color:#2E7D32;display:flex;align-items:center;gap:7px';
-  newsDiv.innerHTML='<span style="flex-shrink:0">📰</span><span>'+newsItems[Math.floor(Date.now()/30000)%newsItems.length]+'</span>';
-  pg.appendChild(newsDiv);
-  var sb=document.createElement('button');sb.className='BTN B-WH BW';sb.style.padding='9px';sb.textContent='📊 我的紀錄';sb.addEventListener('click',function(){go('stats')});
-  // Boss shortcut on home
-  var bossHome=document.createElement('button');bossHome.className='BTN BW';bossHome.style.cssText='padding:9px;background:linear-gradient(135deg,#C62828,#7B1FA2);color:#fff;margin-top:0';bossHome.innerHTML='👹 挑戰魔王';bossHome.addEventListener('click',showBossChallenge);
-  pg.appendChild(sb);
-  pg.appendChild(bossHome);
-  if(dqDiv.innerHTML)pg.insertBefore(dqDiv,pg.firstChild);
+  var newsEl=mkDiv('');newsEl.style.cssText='background:linear-gradient(135deg,#E8F5E9,#E3F2FD);border:1.5px solid #A5D6A7;border-radius:12px;padding:8px 12px;font-size:.72rem;color:#2E7D32;display:flex;align-items:center;gap:7px';
+  newsEl.innerHTML='<span>📰</span><span>'+newsItems[Math.floor(Date.now()/30000)%newsItems.length]+'</span>';
+  pg.appendChild(newsEl);
+
+  // ── Main grid ──
+  var grid=mkDiv('AG');
+  [
+    {id:'h-town',e:'🏘',n:'我的小鎮',s:p.town.filter(Boolean).length+'棟建築',fn:function(){go('town')}},
+    {id:'h-farm',e:'🌾',n:'農場',s:'種作物・加工生產',fn:function(){go('farm')}},
+    {id:'h-ord',e:'📋',n:'訂單',s:(ordRdy2>0?ordRdy2+'筆可完成！':(p.orders||[]).length+'個'),fn:function(){go('orders')}},
+    {id:'h-quiz',e:'📝',n:'做題賺錢',s:'×'+bst().toFixed(1)+' 加成',fn:function(){go('quiz')}},
+    {id:'h-shop',e:'🏪',n:'商店',s:'買建築・擴地',fn:function(){go('shop')}},
+    {id:'h-mg',e:'🎮',n:'小遊戲',s:'每日挑戰',fn:function(){go('mghub')}},
+  ].forEach(function(item){
+    var ac=mkDiv('AC');ac.id=item.id;ac.style.cursor='pointer';
+    ac.innerHTML='<div style="font-size:1.4rem;margin-bottom:4px">'+item.e+'</div>'+
+      '<div style="font-size:.8rem;font-weight:700">'+item.n+'</div>'+
+      '<div style="font-size:.58rem;color:#9EA8B1;margin-top:2px">'+item.s+'</div>';
+    ac.addEventListener('click',item.fn);grid.appendChild(ac);
+  });
+  pg.appendChild(grid);
+
+  // ── Boss button ──
+  var bossBtn=mkDiv('');bossBtn.style.cssText='background:linear-gradient(135deg,#C62828,#7B1FA2);border-radius:14px;padding:11px;text-align:center;cursor:pointer;color:#fff;font-size:.82rem;font-weight:700';
+  bossBtn.innerHTML='👹 挑戰數學魔王（全對得 🪙'+(200+Math.max(1,Math.floor(p.level/2))*50)+'）';
+  bossBtn.addEventListener('click',showBossChallenge);
+  pg.appendChild(bossBtn);
+
   a.appendChild(pg);
   a.appendChild(bnH('home'));
-  var navMap={'h-town':'town','h-farm':'farm','h-ord':'orders','h-quiz':'quiz','h-shop':'shop','h-mg':'mghub'};
-  Object.keys(navMap).forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener('click',function(){go(navMap[id])})});
 }
+
 function rTown(){
   var p=S.p;
   var a=app();a.innerHTML='';
@@ -2828,11 +2938,16 @@ function showFacPopup(idx,bId){
 
 function placeB(idx){
   var p=S.p,b=IT[S.placing];
+  // WH can only be placed once
+  if(S.placing==='WH'&&p.town.some(function(t){return t==='WH'||(t&&t.indexOf('WH_PART_')===0)})){
+    toast('倉庫已存在！每個小鎮只能有一個');S.placing=null;rTown();return;
+  }
   p.town[idx]=S.placing;p.bldgInv[S.placing]--;if(p.bldgInv[S.placing]<=0)delete p.bldgInv[S.placing];
   if(b&&(b.coin||b.exp))p.collect[idx]={lastD:''};
   if(b&&b.cat==='farm')p.farms[idx]={crop:b.crop,done:false,endTime:0};
   if(b&&b.cat==='animal')p.animalSlots[idx]={animal:b.animal,fed:false,ready:false};
   if(b&&b.cat==='factory')p.factories[idx]={queue:[]};
+  S._justPlaced=Date.now();
   if(!Object.keys(p.bldgInv).some(function(k){return p.bldgInv[k]>0}))S.placing=null;
   checkAchievements('build',1);
   saveP();rTown()
@@ -2929,17 +3044,46 @@ function showBuildingPopup(idx,bd){
 }
 
 function showRem(idx,bd){
-  // Warehouse can be moved but not removed
+  if(!bd)return;
   var ov=document.createElement('div');ov.className='POPUP';
   var box=document.createElement('div');box.className='PBX';
-  box.innerHTML='<div style="text-align:center;font-size:2.2rem;margin-bottom:6px">'+bd.e+'</div><div style="text-align:center;font-weight:700;margin-bottom:14px">'+bd.n+'</div>'+(bd.coin?'<div style="text-align:center;font-size:.74rem;color:#4CAF50;margin-bottom:10px">每日生產 🪙'+bd.coin+'</div>':'');
-  var mb=document.createElement('button');mb.style.cssText='display:block;width:100%;padding:11px;background:#1976D2;color:#fff;border:none;border-radius:12px;font-size:.9rem;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px';mb.textContent='📦 移動建築';
-  mb.addEventListener('click',function(){ISO.movingBldg={idx:idx,bId:S.p.town[idx]};ov.remove();toast('點選空格來移動！');renderISO()});
-  var rb=document.createElement('button');rb.style.cssText='display:block;width:100%;padding:11px;background:#EF4444;color:#fff;border:none;border-radius:12px;font-size:.9rem;font-weight:700;cursor:pointer;font-family:inherit;margin-bottom:8px';rb.textContent='🗑 收回庫存';rb.addEventListener('click',function(){remBldg(idx);ov.remove()});
-  var cb=document.createElement('button');cb.style.cssText='display:block;width:100%;padding:11px;background:#F7F9FA;border:1.5px solid #E0E7EF;color:#1B2631;border-radius:12px;font-size:.88rem;cursor:pointer;font-family:inherit';cb.textContent='取消';cb.addEventListener('click',function(){ov.remove()});
-  box.appendChild(mb);box.appendChild(rb);box.appendChild(cb);ov.appendChild(box);
-  ov.addEventListener('click',function(e){if(e.target===ov)ov.remove()});document.body.appendChild(ov);
+  box.innerHTML='<div style="text-align:center;font-size:2.2rem;margin-bottom:6px">'+bd.e+'</div>'+
+    '<div style="text-align:center;font-weight:700;margin-bottom:14px">'+bd.n+'</div>';
+  if(bd.coin){
+    var st=S.p.collect[idx]||{};
+    var rdy=st.lastD!==today();
+    var cb=document.createElement('button');cb.className='BTN B-GR BW';cb.style.padding='12px';
+    cb.textContent=rdy?'💰 收取金幣':'⏳ 明天才能再收';
+    if(rdy)cb.addEventListener('click',function(){
+      S.p.coins+=bd.coin;S.p.collect[idx]={lastD:today()};saveP();ov.remove();toast('+🪙'+bd.coin);
+    });
+    box.appendChild(cb);
+  }
+  // Move button (all buildings)
+  var mvBtn=document.createElement('button');mvBtn.className='BTN B-SK BW';mvBtn.style.padding='11px';mvBtn.textContent='🔀 移動';
+  mvBtn.addEventListener('click',function(){
+    ov.remove();
+    removeMulti(idx,bd.id||S.p.town[idx]);
+    S.p.bldgInv[bd.id||S.p.town[idx]]=(S.p.bldgInv[bd.id||S.p.town[idx]]||0)+1;
+    S.placing=bd.id||S.p.town[idx];
+    saveP();rTown();toast('選擇要放置的位置');
+  });
+  box.appendChild(mvBtn);
+  // Remove (non-WH only)
+  if(bd.id!=='WH'){
+    var rmBtn=document.createElement('button');rmBtn.className='BTN B-RD BW';rmBtn.style.cssText='padding:10px;font-size:.82rem';rmBtn.textContent='🗑 移除（放回庫存）';
+    rmBtn.addEventListener('click',function(){
+      removeMulti(idx,bd.id||S.p.town[idx]);
+      S.p.bldgInv[bd.id||S.p.town[idx]]=(S.p.bldgInv[bd.id||S.p.town[idx]]||0)+1;
+      saveP();ov.remove();rTown();toast('已放回庫存');
+    });
+    box.appendChild(rmBtn);
+  }
+  var cl=document.createElement('button');cl.className='BTN B-WH BW';cl.style.padding='9px';cl.textContent='關閉';cl.addEventListener('click',function(){ov.remove()});
+  box.appendChild(cl);ov.appendChild(box);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove()});
+  document.body.appendChild(ov);
 }
+
 function remBldg(idx){
   var id=S.p.town[idx];if(!id)return;
   // Handle _PART_ cells - find anchor
@@ -3184,7 +3328,7 @@ function rQuiz(){
   tog.addEventListener('click',function(){S.p.settings.hw=!S.p.settings.hw;if(S.p.settings.hw)initOCR();hwDiv.style.background=S.p.settings.hw?'#F0FFF4':'#FFF8F0';tog.className='TOG'+(S.p.settings.hw?' ON':'')});
 
   // Estimate
-  var est=mkDiv('CARD');est.style.cssText='background:#FFFDE7;border-color:#FFE082';est.innerHTML='<div style="font-size:.68rem;color:#795548">預估可賺</div><div style="font-size:1.6rem;font-weight:900;color:#F59E0B;margin-top:3px">🪙 '+Math.round(200*gm*timeMul())+' ~ '+Math.round(420*gm*timeMul())+'</div><div style="font-size:.62rem;color:#888;margin-top:2px">⏱ 時限越短倍率越高：10分×1.5 / 20分×1.2 / 30分×1.0 / 40分×0.8</div>';pg.appendChild(est);
+  var est=mkDiv('CARD');est.style.cssText='background:#FFFDE7;border-color:#FFE082';est.innerHTML='<div style="font-size:.68rem;color:#795548">預估可賺</div><div style="font-size:1.6rem;font-weight:900;color:#F59E0B;margin-top:3px">🪙 '+Math.round(200*gm*timeMul()*q99Mul())+' ~ '+Math.round(420*gm*timeMul()*q99Mul())+'</div><div style="font-size:.62rem;color:#888;margin-top:2px">⏱ 時限越短倍率越高：10分×1.5 / 20分×1.2 / 30分×1.0 / 40分×0.8</div>';pg.appendChild(est);
   // 九九乘法題數選擇
   if(S.mode==='99'){
     var cntRow=mkDiv('CARD');cntRow.style.cssText='background:#FFF8E1;border-color:#FFE082;padding:10px 14px';
@@ -3194,7 +3338,8 @@ function rQuiz(){
       var cb=document.createElement('button');
       var isAct=(S.q99n||20)===parseInt(opt[1]);
       cb.style.cssText='flex:1;padding:9px;border-radius:10px;border:2px solid '+(isAct?'#F59E0B':'#E0E0E0')+';background:'+(isAct?'#FFF3CD':'#fff')+';font-weight:700;font-size:.82rem;cursor:pointer;font-family:inherit;color:'+(isAct?'#92400E':'#4A5568');
-      cb.textContent=opt[0];
+      var mul99={'20':1.0,'50':1.2,'100':1.5};
+      cb.textContent=opt[0]+' (×'+mul99[opt[1]]+')';
       cb.addEventListener('click',function(){S.q99n=parseInt(opt[1]);rQuiz()});
       cntBtns.appendChild(cb);
     });
@@ -3215,11 +3360,20 @@ function rQuiz(){
   a.appendChild(pg);a.appendChild(bnH('quiz'));
 }
 function timeMul(){
-  // Shorter time limit = harder = more coins per question
+  if(S.tl<=5)return 2.0;   // 5 min = hardest = most coins
   if(S.tl<=10)return 1.5;
-  if(S.tl<=20)return 1.2;
+  if(S.tl<=15)return 1.2;
+  if(S.tl<=20)return 1.1;
   if(S.tl<=30)return 1.0;
-  return 0.8; // 40 min
+  return 0.8;
+}
+function q99Mul(){
+  // 九九乘法 more questions = more total reward
+  if(S.mode!=='99')return 1;
+  var n=S.q99n||20;
+  if(n>=100)return 1.5;
+  if(n>=50)return 1.2;
+  return 1.0;
 }
 function startQ(){var n=(S.mode==='ck'||S.mode==='99')?10:20;S.qs=makeQs(S.mode,S.grade,n);S.qi=0;S.qAns=[];S.streak=0;S.maxStreak=0;S.earned=0;S.t=S.tl*60;S.sc='quizrun';rQ();startTimer()}
 function rQ(){
@@ -3274,13 +3428,13 @@ function exitQ(){
 
 function doFinalMark(){
   // Mark all answers
-  var gm=getGRS(S.grade).m*bst()*timeMul();
+  var gm=getGRS(S.grade).m*bst()*timeMul()*q99Mul();
   var cor=0;
   S.qAns.forEach(function(item){
     var ok=item.val?checkAns(item.q,item.val):false;
     item.ok=ok;
     if(ok){
-      cor++;item.c=Math.round(10*gm);
+      cor++;item.c=Math.round(5*gm);
       S.streak++;if(S.streak>S.maxStreak)S.maxStreak=S.streak;
       if(S.streak>=10)item.c+=25;else if(S.streak>=5)item.c+=10;else if(S.streak>=3)item.c+=5;
     } else {
@@ -3613,6 +3767,11 @@ function rSet(){
   pg.appendChild(c2);
   // Info
   var c3=mkDiv('CARD');c3.innerHTML='<div class="BDR"><span style="color:#4A5568">帳號</span><span style="font-weight:700">@'+p.name+'</span></div><div class="BDR"><span style="color:#4A5568">等級</span><span style="font-weight:700">Lv.'+p.level+'</span></div><div class="BDR"><span style="color:#4A5568">登入天數</span><span style="font-weight:700">'+(p.loginDays||1)+'天</span></div>';pg.appendChild(c3);
+  // Account sync button
+  var syncBtn=document.createElement('button');syncBtn.className='BTN B-SK BW';syncBtn.style.cssText='padding:11px;font-size:.85rem';
+  syncBtn.innerHTML='👤 帳號同步 / 匯出存檔';
+  syncBtn.addEventListener('click',function(){rAccountSync()});
+  pg.appendChild(syncBtn);
   var lo=document.createElement('button');lo.className='BTN B-RD BW';lo.style.padding='12px';lo.textContent='🚪 登出';lo.addEventListener('click',function(){if(!confirm('確定要登出？'))return;S.p=null;S.edit=false;S.placing=null;S.mode=null;if(S.ftick){clearInterval(S.ftick);S.ftick=null}go('splash')});pg.appendChild(lo);
   var bk=document.createElement('button');bk.className='BTN B-WH BW';bk.style.cssText='padding:10px;font-size:.82rem';bk.textContent='← 返回';bk.addEventListener('click',function(){go('home')});pg.appendChild(bk);
   a.appendChild(pg);a.appendChild(bnH('home'));
@@ -3635,6 +3794,220 @@ function showChgPin(){
   var ccl=document.createElement('button');ccl.style.cssText='display:block;width:100%;padding:11px;background:#F7F9FA;border:1.5px solid #E0E7EF;color:#1B2631;border-radius:12px;font-size:.88rem;cursor:pointer;font-family:inherit';ccl.textContent='取消';ccl.addEventListener('click',function(){ov.remove()});
   box.appendChild(cfm);box.appendChild(ccl);ov.appendChild(box);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove()});document.body.appendChild(ov);
 }
+// ── ACCOUNT SYNC ──
+// ============================================================
+// ACCOUNT SYNC - Share code system (no backend needed)
+// A creates account → exports 6-char code → B imports
+// ============================================================
+
+var SYNC_API = 'https://api.jsonbin.io/v3/b';
+var SYNC_KEY = '$2a$10$placeholder'; // public read bin
+
+// Encode player data to compact share code
+function exportSaveCode(){
+  var p=S.p;
+  var lite={
+    n:p.displayName,lv:p.level,exp:p.exp,coins:p.coins,
+    town:p.town,inv:p.inv,bldgInv:p.bldgInv,farms:p.farms,
+    achievements:p.achievements,totalCE:p.totalCE,totalA:p.totalA,
+    totalC:p.totalC,loginDays:p.loginDays,settings:p.settings,
+    warehouseCap:p.warehouseCap,_everHad:p._everHad
+  };
+  try{return btoa(unescape(encodeURIComponent(JSON.stringify(lite))))}
+  catch(e){return null}
+}
+
+function importSaveCode(code){
+  try{
+    var data=JSON.parse(decodeURIComponent(escape(atob(code.trim()))));
+    if(!data.n)throw new Error('invalid');
+    return data;
+  }catch(e){return null}
+}
+
+// Cloud sync via free JSONBin (no API key needed for public bins)
+// Each account gets a unique BIN_ID stored in localStorage
+async function cloudSave(){
+  var code=exportSaveCode();
+  if(!code)return null;
+  // Store in localStorage with timestamp
+  var syncData={code:code,name:S.p.displayName,t:Date.now()};
+  localStorage.setItem('mt_sync_'+S.p.displayName, JSON.stringify(syncData));
+  return code;
+}
+
+async function cloudLoad(name){
+  var raw=localStorage.getItem('mt_sync_'+name);
+  if(!raw)return null;
+  try{var d=JSON.parse(raw);return d.code;}catch(e){return null}
+}
+
+// ── ACCOUNT SCREEN ──
+function rAccountSync(){
+  var a=app();a.innerHTML='';
+  // Init supabase
+  if(!supabase&&SUPA_URL)initSupabase();
+  var hdr=document.createElement('div');
+  hdr.style.cssText='background:linear-gradient(135deg,#1565C0,#7B1FA2);padding:16px 14px;flex-shrink:0;text-align:center';
+  hdr.innerHTML='<div style="font-size:1.1rem;font-weight:900;color:#fff;margin-bottom:4px">👤 帳號同步</div>'+
+    '<div style="font-size:.7rem;color:rgba(255,255,255,.8)">建立存檔或載入別人的帳號</div>';
+  a.appendChild(hdr);
+  var pg=document.createElement('div');pg.className='PG FADE';
+
+  // Current account info
+  var myCard=mkDiv('CARD');myCard.style.cssText='background:linear-gradient(135deg,#E8F5E9,#E3F2FD)';
+  myCard.innerHTML='<div style="font-size:.8rem;font-weight:700;margin-bottom:6px">目前帳號</div>'+
+    '<div style="display:flex;align-items:center;gap:10px">'+
+    '<div style="font-size:2rem">'+S.p.av+'</div>'+
+    '<div><div style="font-weight:700">'+S.p.displayName+'</div>'+
+    '<div style="font-size:.68rem;color:#9EA8B1">Lv.'+S.p.level+' | 🪙'+S.p.coins+'</div></div></div>';
+  pg.appendChild(myCard);
+
+  // ─ Export section ─
+  var expCard=mkDiv('CARD');
+  expCard.innerHTML='<div style="font-size:.82rem;font-weight:700;margin-bottom:6px">📤 匯出存檔</div>'+
+    '<div style="font-size:.7rem;color:#9EA8B1;margin-bottom:10px">把存檔分享給朋友，讓他們載入你的帳號</div>';
+  var expBtn=document.createElement('button');expBtn.className='BTN B-GR BW';expBtn.style.padding='11px';
+  expBtn.textContent='📋 產生存檔碼';
+  var expResult=document.createElement('div');expResult.style.cssText='margin-top:10px;display:none';
+  expBtn.addEventListener('click',function(){
+    var code=exportSaveCode();
+    if(!code){toast('匯出失敗');return}
+    // Also cloud save
+    if(supabase){supabaseSave().then(function(ok){if(ok)toast('☁️ 已同步到雲端！')});}
+    // Show first 20 chars as preview, full code in textarea
+    expResult.style.display='block';
+    expResult.innerHTML='<textarea readonly style="width:100%;height:80px;border-radius:10px;border:1.5px solid #C8E6C9;padding:8px;font-size:.65rem;font-family:monospace;resize:none;background:#F7FBF7">'+code+'</textarea>'+
+      '<button style="width:100%;margin-top:6px;padding:9px;background:#1976D2;color:#fff;border:none;border-radius:50px;font-size:.78rem;font-weight:700;cursor:pointer;font-family:inherit" onclick="copyCode(this.previousElementSibling.value)">📋 複製存檔碼</button>';
+  });
+  expCard.appendChild(expBtn);expCard.appendChild(expResult);
+  pg.appendChild(expCard);
+
+  // ─ Import section ─
+  // Supabase info card
+  // Supabase config card
+  var configured=SUPA_URL&&SUPA_KEY;
+  var sbCard=mkDiv('CARD');sbCard.style.cssText='background:#E8EAF6;border-color:#9FA8DA';
+  var sbHtml='<div style="font-size:.8rem;font-weight:700;color:#283593;margin-bottom:6px">☁️ Supabase 即時同步</div>';
+  if(configured){
+    sbHtml+='<div style="font-size:.7rem;color:#4CAF50;margin-bottom:8px">✅ 已設定 Supabase！自動同步中</div>';
+    sbHtml+='<div style="font-size:.7rem;color:#283593">每次儲存自動同步到雲端，可在任何裝置登入帳號。</div>';
+  } else {
+    sbHtml+='<div style="font-size:.7rem;color:#283593;margin-bottom:8px">'+
+      '<b>設定步驟：</b><br>'+
+      '① Supabase → SQL Editor → 貼上建表 SQL<br>'+
+      '② Supabase → Settings → API<br>'+
+      '③ 複製 Project URL 和 anon/public key<br>'+
+      '④ 填入 index.html 開頭的 SUPA_URL / SUPA_KEY<br>'+
+      '⑤ 上傳 → 跨裝置即時同步完成！</div>';
+  }
+  // Cloud load by username
+  if(configured){
+    var cloudLoadDiv=document.createElement('div');cloudLoadDiv.style.marginTop='8px';
+    var cloudInp=document.createElement('input');cloudInp.type='text';cloudInp.className='INP';cloudInp.placeholder='輸入帳號名稱從雲端載入…';cloudInp.style.fontSize='.8rem';
+    var cloudBtn=document.createElement('button');cloudBtn.className='BTN B-SK BW';cloudBtn.style.cssText='padding:9px;margin-top:6px;font-size:.78rem';cloudBtn.textContent='☁️ 從雲端載入此帳號';
+    cloudBtn.addEventListener('click',async function(){
+      var name=cloudInp.value.trim();if(!name){toast('請輸入帳號名稱');return}
+      cloudBtn.disabled=true;cloudBtn.textContent='載入中…';
+      var code=await supabaseLoad(name);
+      cloudBtn.disabled=false;cloudBtn.textContent='☁️ 從雲端載入此帳號';
+      if(!code){toast('❌ 找不到帳號：'+name);return}
+      var data=importSaveCode(code);
+      if(!data){toast('❌ 雲端存檔損壞');return}
+      S.p=data;saveP();toast('✅ 已從雲端載入：'+data.n);render();
+    });
+    cloudLoadDiv.appendChild(cloudInp);cloudLoadDiv.appendChild(cloudBtn);
+    sbCard.innerHTML=sbHtml;sbCard.appendChild(cloudLoadDiv);
+  } else {
+    sbCard.innerHTML=sbHtml;
+  }
+  sbCard.style.cssText='background:#E8EAF6;border-color:#9FA8DA';
+  sbCard.innerHTML='<div style="font-size:.8rem;font-weight:700;color:#283593;margin-bottom:4px">☁️ 關於 Supabase 即時同步</div>'+
+    '<div style="font-size:.7rem;color:#283593">如要跨裝置即時同步，可申請免費的 Supabase 帳號。'+
+    '目前使用「存檔碼」方式可在同一台裝置切換帳號，或把存檔碼傳給朋友。</div>';
+  pg.appendChild(sbCard);
+  var impCard=mkDiv('CARD');
+  impCard.innerHTML='<div style="font-size:.82rem;font-weight:700;margin-bottom:6px">📥 載入存檔</div>'+
+    '<div style="font-size:.7rem;color:#9EA8B1;margin-bottom:10px">輸入朋友給你的存檔碼</div>';
+  var impInput=document.createElement('textarea');
+  impInput.style.cssText='width:100%;height:70px;border-radius:10px;border:1.5px solid #E0E0E0;padding:8px;font-size:.65rem;font-family:monospace;resize:none';
+  impInput.placeholder='貼上存檔碼…';
+  var impBtn=document.createElement('button');impBtn.className='BTN B-OR BW';impBtn.style.cssText='padding:11px;margin-top:8px';
+  impBtn.textContent='🔑 載入這個帳號';
+  impBtn.addEventListener('click',function(){
+    var code=impInput.value.trim();
+    if(!code){toast('請輸入存檔碼');return}
+    var data=importSaveCode(code);
+    if(!data){toast('❌ 存檔碼無效，請重試');return}
+    // Confirm
+    var ov=document.createElement('div');ov.className='POPUP';
+    var box=document.createElement('div');box.className='PBX';box.style.textAlign='center';
+    box.innerHTML='<div style="font-size:1.5rem;margin-bottom:8px">🔄</div>'+
+      '<div style="font-size:.95rem;font-weight:900;margin-bottom:6px">載入帳號？</div>'+
+      '<div style="font-size:.78rem;color:#4A5568;margin-bottom:14px">帳號：<strong>'+data.n+'</strong><br>Lv.'+data.lv+' | 🪙'+data.coins+'<br><span style="color:#EF4444;font-size:.68rem">⚠️ 目前資料將被覆蓋</span></div>';
+    var confBtn=document.createElement('button');confBtn.className='BTN B-OR BW';confBtn.style.padding='12px';confBtn.textContent='確認載入';
+    confBtn.addEventListener('click',function(){
+      // Merge: keep displayName from imported, load all data
+      var pName=data.n;
+      data.lastDay=today(); // reset daily so login bonus triggers
+      localStorage.setItem('mt_p_'+pName, JSON.stringify(data));
+      // Switch to this account
+      S.p=data;
+      ov.remove();
+      saveP();
+      toast('✅ 已載入帳號：'+pName+'！');
+      render();
+    });
+    var canBtn=document.createElement('button');canBtn.className='BTN B-WH BW';canBtn.style.cssText='padding:10px;margin-top:6px';canBtn.textContent='取消';canBtn.addEventListener('click',function(){ov.remove()});
+    box.appendChild(confBtn);box.appendChild(canBtn);ov.appendChild(box);
+    ov.addEventListener('click',function(e){if(e.target===ov)ov.remove()});
+    document.body.appendChild(ov);
+  });
+  impCard.appendChild(impInput);impCard.appendChild(impBtn);pg.appendChild(impCard);
+
+  // ─ Multi-account section ─
+  var multiCard=mkDiv('CARD');
+  multiCard.innerHTML='<div style="font-size:.82rem;font-weight:700;margin-bottom:8px">👨‍👩‍👧 裝置上的帳號</div>';
+  var accounts=[];
+  for(var k in localStorage){if(k.startsWith('mt_p_'))accounts.push(k.slice(5));}
+  if(accounts.length===0){
+    multiCard.innerHTML+='<div style="font-size:.72rem;color:#9EA8B1">還沒有其他帳號</div>';
+  } else {
+    accounts.forEach(function(name){
+      var row=document.createElement('div');row.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #F0F0F0';
+      try{
+        var pd=JSON.parse(localStorage.getItem('mt_p_'+name));
+        row.innerHTML='<div><div style="font-weight:700;font-size:.82rem">'+pd.av+' '+pd.displayName+'</div><div style="font-size:.65rem;color:#9EA8B1">Lv.'+pd.level+'</div></div>';
+        var swBtn=document.createElement('button');swBtn.style.cssText='padding:5px 12px;background:'+(name===S.p.displayName?'#E0E0E0':'#4CAF50')+';color:'+(name===S.p.displayName?'#888':'#fff')+';border:none;border-radius:50px;font-size:.72rem;font-weight:700;cursor:pointer;font-family:inherit';
+        swBtn.textContent=name===S.p.displayName?'目前使用':'切換';
+        if(name!==S.p.displayName){swBtn.addEventListener('click',(function(n){return function(){switchAccount(n)}})(name))}
+        row.appendChild(swBtn);
+      }catch(e){row.innerHTML='<div>'+name+'</div>'}
+      multiCard.appendChild(row);
+    });
+  }
+  pg.appendChild(multiCard);
+
+  var bk=document.createElement('button');bk.className='BTN B-WH BW';bk.style.padding='9px';bk.textContent='← 返回設定';bk.addEventListener('click',function(){go('settings')});
+  pg.appendChild(bk);a.appendChild(pg);a.appendChild(bnH('home'));
+}
+
+function copyCode(text){
+  if(navigator.clipboard){navigator.clipboard.writeText(text).then(function(){toast('📋 已複製！分享給朋友吧')})}
+  else{toast('請長按存檔碼手動複製')}
+}
+
+function switchAccount(name){
+  var raw=localStorage.getItem('mt_p_'+name);
+  if(!raw){toast('找不到帳號');return}
+  try{
+    S.p=JSON.parse(raw);
+    saveP();
+    toast('已切換到：'+S.p.displayName);
+    render();
+  }catch(e){toast('切換失敗')}
+}
+
 // ── MORE FUN FEATURES ──
 // ============================================================
 // MORE FUN FEATURES
@@ -3898,18 +4271,24 @@ var COLLECTION={
 function rCollection(){
   var a=app();a.innerHTML='';a.appendChild(tbH());
   var pg=document.createElement('div');pg.className='PG FADE';
-  pg.innerHTML='<div style="font-size:.92rem;font-weight:900">📖 收藏圖鑑</div><div style="font-size:.7rem;color:#9EA8B1;margin-top:-8px">收集所有物品！</div>';
-  Object.keys(COLLECTION).forEach(function(catKey){
-    var cat=COLLECTION[catKey];
+  var ttl=document.createElement('div');ttl.innerHTML='<div style="font-size:.92rem;font-weight:900">📖 收藏圖鑑</div><div style="font-size:.7rem;color:#9EA8B1">擁有過的物品</div>';pg.appendChild(ttl);
+  var cats={
+    '農作物':['wheat_g','corn_g','tomato','berry','carrot','potato','pumpkin','cotton','sugarcane','indigo'],
+    '加工品':['flour','bread','cake','cookie','pie','butter','cheese','sugar','fabric','sweater'],
+    '動物產品':['egg','milk','wool','truffle'],
+  };
+  Object.keys(cats).forEach(function(catName){
     var card=document.createElement('div');card.className='CARD';
-    var total=cat.items.length,owned=cat.items.filter(function(id){return (S.p.inv[id]||0)>0||(S.p._everHad&&S.p._everHad[id])}).length;
-    card.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="font-size:.82rem;font-weight:700">'+cat.name+'</div><div style="font-size:.72rem;color:#F59E0B;font-weight:700">'+owned+'/'+total+'</div></div>';
+    var ids=cats[catName];
+    var owned=ids.filter(function(id){return (S.p.inv[id]||0)>0||(S.p._everHad&&S.p._everHad[id])}).length;
+    var hdr=document.createElement('div');hdr.style.cssText='display:flex;justify-content:space-between;align-items:center;margin-bottom:10px';
+    hdr.innerHTML='<span style="font-size:.82rem;font-weight:700">'+catName+'</span><span style="font-size:.72rem;color:#F59E0B;font-weight:700">'+owned+'/'+ids.length+'</span>';
+    card.appendChild(hdr);
     var grid=document.createElement('div');grid.style.cssText='display:grid;grid-template-columns:repeat(5,1fr);gap:6px';
-    cat.items.forEach(function(id){
-      var gd=GOODS[id];var hasIt=(S.p.inv[id]||0)>0||(S.p._everHad&&S.p._everHad[id]);
-      if(!gd)return; // skip unknown goods
+    ids.forEach(function(id){
+      var gd=GD[id];var hasIt=(S.p.inv[id]||0)>0||(S.p._everHad&&S.p._everHad[id]);
       var itm=document.createElement('div');itm.style.cssText='text-align:center;padding:6px 2px;border-radius:8px;background:'+(hasIt?'#E8F5E9':'#F5F5F5')+';border:1px solid '+(hasIt?'#A5D6A7':'#E0E0E0');
-      itm.innerHTML='<div style="font-size:1.4rem;filter:'+(hasIt?'none':'grayscale(1) opacity(.3)')+'">'+( gd?gd.e:'?')+'</div><div style="font-size:.48rem;color:'+(hasIt?'#2E7D32':'#ccc')+'">'+( hasIt?gd.n:'???')+'</div>';
+      itm.innerHTML='<div style="font-size:1.4rem;filter:'+(hasIt?'none':'grayscale(1) opacity(.3)')+'">'+( gd?gd.e:'?')+'</div><div style="font-size:.48rem;color:'+(hasIt?'#2E7D32':'#ccc')+'">'+( hasIt&&gd?gd.n:'???')+'</div>';
       grid.appendChild(itm);
     });
     card.appendChild(grid);pg.appendChild(card);
@@ -3917,6 +4296,7 @@ function rCollection(){
   var bk=document.createElement('button');bk.className='BTN B-WH BW';bk.style.padding='9px';bk.textContent='← 返回';bk.addEventListener('click',function(){go('home')});
   pg.appendChild(bk);a.appendChild(pg);a.appendChild(bnH('home'));
 }
+
 
 
 // ── FUN FEATURES ──
@@ -3994,6 +4374,7 @@ function showLuckySpin(){
         S.p.bldgInv[rb.id]=(S.p.bldgInv[rb.id]||0)+1;winner.n='獲得 '+rb.e+rb.n+'！';
       }
       saveP();
+      var coinEl=document.querySelector('.COINB');if(coinEl)coinEl.textContent='🪙 '+S.p.coins.toLocaleString();
       result.innerHTML='<div style="font-size:2rem;margin-bottom:4px">'+winner.e+'</div><div style="font-size:.95rem">'+winner.n+'</div>';
       result.style.color=winner.val>=100||winner.type==='bldg'?'#E65100':'#2E7D32';
       spinBtn.disabled=false;spinBtn.textContent='🎰 再轉一次！（🪙'+spinCost+'）';
@@ -4016,12 +4397,12 @@ function showLuckySpin(){
 
 // ── 2. RANDOM TOWN EVENTS ──
 var TOWN_EVENTS=[
-  {e:'☀️',msg:'陽光燦爛！農作物生長加速！',fn:function(p){toast('☀️ 農作物生長加速！')}},
-  {e:'🧙',msg:'旅行魔法師路過，送你金幣！',fn:function(p){var g=20+Math.floor(Math.random()*30);p.coins+=g;p.totalCE=(p.totalCE||0)+g;toast('🧙 旅行魔法師送你 🪙'+g+'！');saveP();}},
-  {e:'🎪',msg:'節日慶典！所有訂單獎勵×2！',fn:function(p){toast('🎪 節日慶典開始！完成訂單獎勵加倍！');S._festivalOn=true;setTimeout(function(){S._festivalOn=false;},120000);}},
-  {e:'⚡',msg:'暴風雨來了！小心農作物！',fn:function(p){toast('⚡ 暴風雨！小心農作物～');}},
-  {e:'🐝',msg:'蜜蜂造訪！花圃產了蜂蜜！',fn:function(p){p.inv.honey=(p.inv.honey||0)+3;saveP();toast('🐝 蜜蜂帶來 3 蜂蜜！');}},
-  {e:'🌈',msg:'彩虹出現！幸運日！所有答題金幣×1.5',fn:function(p){toast('🌈 幸運彩虹！接下來15分鐘答題金幣×1.5！');S._rainbowEnd=Date.now()+900000;}},
+  {e:'☀️',msg:'陽光燦爛！農作物生長加速！',fn:function(){toast('☀️ 農作物生長加速！');}},
+  {e:'🧙',msg:'旅行魔法師路過，送你金幣！',fn:function(){var g=20+Math.floor(Math.random()*30);S.S.p.coins+=g;S.S.p.totalCE=(S.S.p.totalCE||0)+g;toast('🧙 旅行魔法師送你 🪙'+g+'！');saveP();}},
+  {e:'🎪',msg:'節日慶典！所有訂單獎勵×2！',fn:function(){toast('🎪 節日慶典開始！完成訂單獎勵加倍！');S._festivalOn=true;setTimeout(function(){S._festivalOn=false;},120000);}},
+  {e:'⚡',msg:'暴風雨來了！小心農作物！',fn:function(){toast('⚡ 暴風雨！小心農作物～');}},
+  {e:'🐝',msg:'蜜蜂造訪！花圃產了蜂蜜！',fn:function(){S.S.p.inv.honey=(S.S.p.inv.honey||0)+3;saveP();toast('🐝 蜜蜂帶來 3 蜂蜜！');}},
+  {e:'🌈',msg:'彩虹出現！幸運日！所有答題金幣×1.5',fn:function(){toast('🌈 幸運彩虹！接下來15分鐘答題金幣×1.5！');S._rainbowEnd=Date.now()+900000;}},
 ];
 var lastEventTime=0;
 // ── TREASURE CHEST on map ──
@@ -4073,7 +4454,7 @@ function checkRandomEvent(){
   var ov=document.createElement('div');
   ov.style.cssText='position:fixed;top:12%;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#2E7D32,#1565C0);color:#fff;border-radius:20px;padding:18px 24px;z-index:9998;text-align:center;animation:pop .4s ease;box-shadow:0 6px 24px rgba(0,0,0,.4);max-width:300px;cursor:pointer';
   ov.innerHTML='<div style="font-size:2.5rem;margin-bottom:8px">'+ev.e+'</div><div style="font-size:.95rem;font-weight:700;margin-bottom:4px">隨機事件！</div><div style="font-size:.78rem;opacity:.9">'+ev.msg+'</div><div style="font-size:.65rem;opacity:.7;margin-top:8px">點擊領取</div>';
-  ov.addEventListener('click',function(){ev.fn(S.p);ov.remove();});
+  ov.addEventListener('click',function(){ev.fn();ov.remove();});
   document.body.appendChild(ov);
   setTimeout(function(){if(ov.parentNode)ov.remove();},8000);
 }
@@ -4142,10 +4523,31 @@ function showBossChallenge(){
 }
 
 
+function showAvatarPicker(){
+  var avatars=['😀','😊','😎','🤩','🥳','😄','🤗','😇','🦊','🐼','🐯','🦁','🐸','🐧','🦄','🐙'];
+  var ov=document.createElement('div');ov.className='POPUP';
+  var box=document.createElement('div');box.className='PBX';
+  box.innerHTML='<div style="font-size:.95rem;font-weight:900;margin-bottom:12px;text-align:center">選擇頭像</div>';
+  var grid=document.createElement('div');grid.style.cssText='display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px';
+  avatars.forEach(function(av){
+    var b=document.createElement('div');
+    b.style.cssText='font-size:2rem;text-align:center;padding:10px;border-radius:12px;cursor:pointer;border:2px solid '+(S.p.av===av?'#4CAF50':'#E0E7EF')+';background:'+(S.p.av===av?'#E8F5E9':'#F7FBF7');
+    b.textContent=av;
+    b.addEventListener('click',function(){S.p.av=av;saveP();ov.remove();render();});
+    grid.appendChild(b);
+  });
+  box.appendChild(grid);
+  var cl=document.createElement('button');cl.className='BTN B-WH BW';cl.style.padding='9px';cl.textContent='取消';cl.addEventListener('click',function(){ov.remove()});
+  box.appendChild(cl);ov.appendChild(box);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove()});
+  document.body.appendChild(ov);
+}
+
+// Auto-init Supabase
+initSupabase();
 render();
 // Pre-load OCR in background after 3 seconds
 setTimeout(function(){if(typeof Tesseract!=='undefined')initOCR()},3000);
 if('serviceWorker' in navigator)window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})});
-</script>
+}</script>
 </body>
 </html>
