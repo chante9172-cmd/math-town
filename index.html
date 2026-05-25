@@ -2704,12 +2704,6 @@ async function doLogin(){
     var pd=await loadPD(name);
     if(pd&&pd.pin===hPin(pin)){
       p=pd;
-      // Push to cloud so other devices can find it
-      if(supabase){
-        S.p=p;
-        err.textContent='☁️ 同步帳號到雲端…';
-        await supabaseSave();
-      }
     }
     else if(pd){err.textContent='PIN錯誤';return}
   }
@@ -2748,6 +2742,13 @@ async function doLogin(){
   }
   S.p=p;
   await saveP();
+  // Push to Supabase so other devices can find this account
+  if(supabase){
+    err.textContent='☁️ 同步到雲端…';
+    var saveOk=await supabaseSave();
+    if(saveOk){console.log('✅ Cloud sync OK');}
+    else{console.warn('⚠️ Cloud sync failed');}
+  }
   startTick();go('home');
 }
 
@@ -3914,6 +3915,18 @@ function rSet(){
   // Account sync button
   var syncBtn=document.createElement('button');syncBtn.className='BTN B-SK BW';syncBtn.style.cssText='padding:11px;font-size:.85rem';
   syncBtn.innerHTML='👤 帳號同步 / 匯出存檔';
+  // Also add a quick cloud push button
+  var pushBtn=document.createElement('button');pushBtn.className='BTN B-SK BW';pushBtn.style.cssText='padding:11px;font-size:.85rem';
+  pushBtn.innerHTML='☁️ 立即上傳存檔到雲端';
+  pushBtn.addEventListener('click',async function(){
+    if(!supabase){initSupabase();}
+    if(!supabase){toast('Supabase 未設定');return;}
+    pushBtn.textContent='上傳中…';pushBtn.disabled=true;
+    var ok=await supabaseSave();
+    pushBtn.disabled=false;pushBtn.innerHTML='☁️ 立即上傳存檔到雲端';
+    toast(ok?'✅ 上傳成功！其他裝置可登入了':'❌ 上傳失敗，請稍後再試');
+  });
+  pg.appendChild(pushBtn);
   syncBtn.addEventListener('click',function(){rAccountSync()});
   pg.appendChild(syncBtn);
   var lo=document.createElement('button');lo.className='BTN B-RD BW';lo.style.padding='12px';lo.textContent='🚪 登出';lo.addEventListener('click',function(){
