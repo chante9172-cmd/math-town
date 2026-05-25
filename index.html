@@ -108,8 +108,8 @@ input[type=number]::-webkit-inner-spin-button{display:none}
 // ★ 在這裡填入你的 Supabase 設定
 // 去 Supabase → Settings → API 找到這兩個值
 // ═══════════════════════════════════════════════
-var SUPA_URL = ''; // 例：https://abcdefgh.supabase.co
-var SUPA_KEY = ''; // 例：eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+var SUPA_URL = 'https://bbheqrizaglidbfyrkuq.supabase.co';
+var SUPA_KEY = 'sb_publishable_FwGRDxGgM9vmXOAxwUjdAA_lT683X_o';
 // ═══════════════════════════════════════════════
 </script>
 <script>
@@ -138,7 +138,7 @@ async function supabaseSave(){
   if(!code)return false;
   try{
     var res=await supabase.from('mt_saves').upsert({
-      username:S.p.displayName.toLowerCase(),
+      username:(S.p.name||S.p.displayName).toLowerCase(),
       display_name:S.p.displayName,
       save_code:code,
       level:S.p.level,
@@ -862,7 +862,11 @@ function saveAccs(){try{localStorage.setItem('mt_a',JSON.stringify(S.accounts))}
 function hPin(p){var h=0;for(var i=0;i<p.length;i++)h=(h*31+p.charCodeAt(i))&0xFFFFFF;return h.toString(16)}
 function getKey(){try{return localStorage.getItem('mt_k')||''}catch(e){return''}}
 async function saveP(){if(!S.p)return;var k='mt_p_'+S.p.name,d=JSON.stringify(S.p);try{if(window.storage)await window.storage.set(k,d,true)}catch(e){}try{localStorage.setItem(k,d)}catch(e){
-  if(window._supabaseAutoSync)window._supabaseAutoSync();
+  // Debounced cloud sync
+  if(supabase&&S.p){
+    clearTimeout(window._spT);
+    window._spT=setTimeout(function(){supabaseSave();},2000);
+  }
 }
 } // close saveP
 async function loadPD(name){var k='mt_p_'+name;try{if(window.storage){var r=await window.storage.get(k,true);if(r&&r.value)return JSON.parse(r.value)}}catch(e){}try{var d=localStorage.getItem(k);if(d)return JSON.parse(d)}catch(e){}return null}
@@ -2547,13 +2551,28 @@ function render(){
 
 // ---- UI HELPERS ----
 function tbH(){
-  if(!S.p)return'';
+  if(!S.p)return document.createElement('div');
   var p=S.p,rc=rdyCnt(),xp=Math.min(100,Math.round(p.exp/expN(p.level)*100));
   var el=document.createElement('div');el.className='TB';
-  el.innerHTML='<div style="display:flex;align-items:center;gap:8px"><div class="AV">🧒</div><div><div style="color:#fff;font-size:.78rem;font-weight:700">'+p.displayName+'<span class="LVB">Lv.'+p.level+'</span></div><div class="XPW"><div class="XPB" style="width:'+xp+'%"></div></div></div></div><div style="display:flex;align-items:center;gap:6px">'+(rc>0?'<div class="COINB" style="background:rgba(255,107,53,.35);cursor:pointer" id="rc-btn">📦'+rc+'</div>':'')+'<div class="COINB">🪙 '+p.coins.toLocaleString()+'</div><button id="set-btn" style="background:none;border:none;color:rgba(255,255,255,.8);font-size:1rem;cursor:pointer">⚙️</button></div>';
-  el.querySelector('#set-btn')?.addEventListener('click',function(){go('settings')});
-  el.querySelector('#rc-btn')?.addEventListener('click',function(){go('town')});
-  return el
+  var left=document.createElement('div');left.style.cssText='display:flex;align-items:center;gap:8px';
+  var av=document.createElement('div');av.className='AV';av.style.cursor='pointer';
+  av.textContent=p.av||'🧒';
+  av.addEventListener('click',function(){showAvatarPicker()});
+  var nd=document.createElement('div');
+  nd.innerHTML='<div style="color:#fff;font-size:.78rem;font-weight:700">'+p.displayName+'<span class="LVB">Lv.'+p.level+'</span></div><div class="XPW"><div class="XPB" style="width:'+xp+'%"></div></div>';
+  left.appendChild(av);left.appendChild(nd);
+  var right=document.createElement('div');right.style.cssText='display:flex;align-items:center;gap:6px';
+  if(rc>0){
+    var rb=document.createElement('div');rb.className='COINB';
+    rb.style.cssText='background:rgba(255,107,53,.35);cursor:pointer';
+    rb.textContent='📦'+rc;rb.addEventListener('click',function(){go('town')});
+    right.appendChild(rb);
+  }
+  var cb=document.createElement('div');cb.className='COINB';cb.textContent='🪙 '+p.coins.toLocaleString();right.appendChild(cb);
+  var sb=document.createElement('button');sb.style.cssText='background:none;border:none;color:rgba(255,255,255,.8);font-size:1rem;cursor:pointer';
+  sb.textContent='⚙️';sb.addEventListener('click',function(){go('settings')});right.appendChild(sb);
+  el.appendChild(left);el.appendChild(right);
+  return el;
 }
 function bnH(act){
   var defs=[['home','🏠','首頁'],['town','🏘','小鎮'],['quiz','📝','答題'],['orders','📋','訂單'],['shop','🏪','商店']];
@@ -2603,11 +2622,24 @@ async function doReg(){
   if(!disp){err.textContent='請輸入顯示名稱';return}
   if(!/^\d{4}$/.test(pin)){err.textContent='PIN需為4位數字';return}
   if(pin!==pin2){err.textContent='PIN不一致';return}
-  S.accounts=getAccs();
-  if(S.accounts.find(function(a){return a.name===name})){err.textContent='帳號已存在';return}
-  S.accounts.push({name:name,displayName:disp,pinHash:hPin(pin)});saveAccs();
-  S.p=newP(name,pin,disp);await saveP();genOrders();startTick();go('home')
+  // Check if username taken (local + cloud)
+  var localAccs=getAccs();
+  if(localAccs.find(function(a){return a.name===name})){err.textContent='帳號已存在';return}
+  if(supabase){
+    err.textContent='檢查帳號中…';
+    try{
+      var chk=await supabase.from('mt_saves').select('username').eq('username',name).single();
+      if(chk.data){err.textContent='帳號已被使用，請換一個';return}
+    }catch(e){}
+  }
+  err.textContent='建立中…';
+  var p=newP(name,pin,disp);
+  S.p=p;
+  localAccs.push({name:name,displayName:disp,pinHash:hPin(pin)});saveAccs();
+  await saveP();
+  genOrders();startTick();go('home');
 }
+
 function rLogin(){
   S.accounts=getAccs();
   var a=app();a.innerHTML='';
@@ -2641,26 +2673,36 @@ async function doLogin(){
   var err=document.getElementById('lerr');
   if(!name){err.textContent='請輸入帳號';return}
   if(!/^\d{4}$/.test(pin)){err.textContent='PIN需為4位數字';return}
-  S.accounts=getAccs();
-  var acc=S.accounts.find(function(a){return a.name===name&&a.pinHash===hPin(pin)});
-  if(!acc){var pd=await loadPD(name);if(pd&&pd.pin===hPin(pin)){acc={name:name,displayName:pd.displayName||name,pinHash:hPin(pin)};if(!S.accounts.find(function(a){return a.name===name})){S.accounts.push(acc);saveAccs()}}}
-  if(!acc){err.textContent='帳號或PIN錯誤';return}
-  var p=await loadPD(name);if(!p)p=newP(name,pin,acc.displayName);
-  ['farms','factories','animalSlots','bldgInv','collect','mgDone'].forEach(function(k){if(!p[k])p[k]={}});
-  // Ensure warehouse exists on map
-  var whPlaced=p.town.some(function(t){return t==='WH'});
-  if(!whPlaced){
-    // Place warehouse at a visible spot - row 2 col 2
-    var whIdx=2*MSZ+2;
-    if(p.town[whIdx])whIdx=3*MSZ+3;
-    if(p.town[whIdx]){for(var wi=0;wi<p.town.length;wi++){if(!p.town[wi]){p.town[wi]='WH';break}}}
-    else p.town[whIdx]='WH';
-    saveP();
+  err.textContent='登入中…';
+  var p=null;
+  // 1. Try Supabase first (cloud - works on any device)
+  if(supabase){
+    try{
+      var res=await supabase.from('mt_saves').select('*').eq('username',name).single();
+      if(res.data&&res.data.save_code){
+        var cloud=importSaveCode(res.data.save_code);
+        if(cloud&&cloud.pin===hPin(pin)){p=cloud;p.name=name;}
+        else if(cloud){err.textContent='PIN錯誤';return}
+      }
+    }catch(e){}
   }
-  if(!p.displayName)p.displayName=acc.displayName||name;
-  while(p.town.length<MSZ*MSZ)p.town.push(null);
-  if(p.lastDay!==today()){p.coins+=20;p.totalCE=(p.totalCE||0)+20;p.lastDay=today();p.loginDays=(p.loginDays||0)+1}
+  // 2. Fallback: localStorage
+  if(!p){
+    var pd=await loadPD(name);
+    if(pd&&pd.pin===hPin(pin)){p=pd;}
+    else if(pd){err.textContent='PIN錯誤';return}
+  }
+  if(!p){err.textContent='找不到帳號，請先註冊';return}
+  // Set defaults
+  ['farms','factories','animalSlots','bldgInv','collect','mgDone'].forEach(function(k){if(!p[k])p[k]={}});
+  if(!p.av)p.av='🧒';
+  if(!p.displayName)p.displayName=p.n||name;
+  if(!p.name)p.name=name;
+  while(p.town&&p.town.length<MSZ*MSZ)p.town.push(null);
+  if(!p.town){p.town=Array(MSZ*MSZ).fill(null);}
   if(!p.orders||p.orders.length<1)genOrders();
+  // Daily login bonus
+  if(p.lastDay!==today()){p.coins=(p.coins||0)+20;p.totalCE=(p.totalCE||0)+20;p.lastDay=today();p.loginDays=(p.loginDays||0)+1;}
   // Daily quest
   if(!p.dailyQuest||p.dailyQuest.day!==today()){
     var quests=[
@@ -2671,9 +2713,20 @@ async function doLogin(){
     ];
     p.dailyQuest={day:today(),quest:quests[Math.floor(Math.random()*quests.length)],done:false};
   }
-  if(!p.av)p.av='🧒';
-  S.p=p;await saveP();startTick();go('home')
+  // Ensure WH on map
+  if(!p.town.some(function(t){return t==='WH';})){
+    for(var wi=0;wi<p.town.length;wi++){if(!p.town[wi]){p.town[wi]='WH';break;}}
+  }
+  // Save to local accounts list
+  var accs=getAccs();
+  if(!accs.find(function(a){return a.name===name;})){
+    accs.push({name:name,displayName:p.displayName,pinHash:hPin(pin)});saveAccs();
+  }
+  S.p=p;
+  await saveP();
+  startTick();go('home');
 }
+
 function rHome(){
   var p=S.p;
   if(!p){rLogin();return}
@@ -2838,6 +2891,7 @@ function cClick(idx,bId,bd){
   var p=S.p;
   // Placing mode
   if(S.placing){
+    if(Date.now()-(S._lastPlace||0)<600){return;} // debounce 600ms
     if(!bId){placeB(idx)}
     else toast('此格已有建築，請點空格');
     return
@@ -2956,7 +3010,7 @@ function placeB(idx){
   if(b&&b.cat==='farm')p.farms[idx]={crop:b.crop,done:false,endTime:0};
   if(b&&b.cat==='animal')p.animalSlots[idx]={animal:b.animal,fed:false,ready:false};
   if(b&&b.cat==='factory')p.factories[idx]={queue:[]};
-  S._justPlaced=Date.now();
+  S._lastPlace=Date.now();
   if(!Object.keys(p.bldgInv).some(function(k){return p.bldgInv[k]>0}))S.placing=null;
   checkAchievements('build',1);
   saveP();rTown()
@@ -3037,19 +3091,15 @@ function showBuildingPopup(idx,bd){
     var pct=Math.round(used/cap*100);
     info.innerHTML='<div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:.9rem;font-weight:700">📦 儲存量</span><span style="font-size:.9rem;font-weight:700;color:'+(pct>80?'#EF4444':'#2E7D32')+'">'+used+' / '+cap+'</span></div><div style="background:#E0E0E0;border-radius:4px;height:8px;overflow:hidden"><div style="background:'+(pct>80?'#EF4444':'#4CAF50')+';height:100%;width:'+pct+'%;border-radius:4px"></div></div><div style="font-size:.68rem;color:#9EA8B1;margin-top:6px">Lv.'+S.p.level+' · 每升一級 +25 格空間</div>';
     box.appendChild(info);
-    var cl=document.createElement('button');cl.style.cssText='display:block;width:100%;padding:11px;background:#F7F9FA;border:1.5px solid #E0E7EF;color:#1B2631;border-radius:12px;font-size:.88rem;cursor:pointer;font-family:inherit';cl.textContent='關閉';cl.addEventListener('click',function(){ov.remove()});
+    // Move button for WH
+    var mvWH=document.createElement('button');mvWH.className='BTN B-SK BW';mvWH.style.padding='10px';mvWH.textContent='🔀 移動倉庫';
+    mvWH.addEventListener('click',function(){ov.remove();removeMulti(idx,'WH');S.p.bldgInv['WH']=(S.p.bldgInv['WH']||0)+1;S.placing='WH';saveP();rTown();toast('選擇要放置的位置');});
+    box.appendChild(mvWH);
+    var cl=document.createElement('button');cl.style.cssText='display:block;width:100%;padding:11px;background:#F7F9FA;border:1.5px solid #E0E7EF;color:#1B2631;border-radius:12px;font-size:.88rem;cursor:pointer;font-family:inherit;margin-top:6px';cl.textContent='關閉';cl.addEventListener('click',function(){ov.remove()});
     box.appendChild(cl);ov.appendChild(box);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove()});document.body.appendChild(ov);
     return;
   }
-  if(S.edit){showRem(idx,bd)}
-  else{
-    // Non-edit: show building info
-    var ov2=document.createElement('div');ov2.className='POPUP';
-    var box2=document.createElement('div');box2.className='PBX';
-    box2.innerHTML='<div style="text-align:center;font-size:2.2rem;margin-bottom:6px">'+bd.e+'</div><div style="text-align:center;font-weight:700;margin-bottom:8px">'+bd.n+'</div>'+(bd.coin?'<div style="background:#E8F5E9;border-radius:10px;padding:8px;text-align:center;font-size:.82rem;color:#2E7D32;margin-bottom:10px">每日收入 🪙'+bd.coin+'</div>':'');
-    var cl2=document.createElement('button');cl2.style.cssText='display:block;width:100%;padding:11px;background:#F7F9FA;border:1.5px solid #E0E7EF;color:#1B2631;border-radius:12px;font-size:.88rem;cursor:pointer;font-family:inherit';cl2.textContent='關閉';cl2.addEventListener('click',function(){ov2.remove()});
-    box2.appendChild(cl2);ov2.appendChild(box2);ov2.addEventListener('click',function(e){if(e.target===ov2)ov2.remove()});document.body.appendChild(ov2);
-  }
+  showRem(idx,bd);
 }
 
 function showRem(idx,bd){
@@ -4048,32 +4098,44 @@ function switchAccount(name){
 // ── 1. FISHING MINI-GAME ──
 function rFishing(){
   var p=S.p;
-  if(p.mgDone&&p.mgDone.fish===today()){
-    toast('今天已釣魚了！明天再來 🎣');return;
-  }
+  if(p.mgDone&&p.mgDone.fish===today()){toast('今天已釣魚了！明天再來 🎣');return;}
   var a=app();a.innerHTML='';
   var hdr=document.createElement('div');
   hdr.style.cssText='background:linear-gradient(135deg,#0277BD,#00695C);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0';
-  hdr.innerHTML='<div style="color:#fff;font-weight:700;font-size:.88rem">🎣 釣魚（每日一次）</div><div id="fish-score" style="color:#FFD700;font-weight:900;font-size:.88rem">分數：0</div>';
-  var qb=document.createElement('button');qb.className='BTN B-WH';qb.style.cssText='padding:5px 12px;font-size:.75rem';qb.textContent='放棄';qb.addEventListener('click',function(){clrT();go('mghub')});
+  hdr.innerHTML='<div style="color:#fff;font-weight:700;font-size:.88rem">🎣 釣魚（每日一次）</div><div id="fish-score" style="color:#FFD700;font-weight:900;font-size:.88rem">分數：0 | ⏰30</div>';
+  var qb=document.createElement('button');qb.className='BTN B-WH';qb.style.cssText='padding:5px 12px;font-size:.75rem';qb.textContent='放棄';
+  qb.addEventListener('click',function(){clrT();cancelAnimationFrame(raf);go('mghub')});
   hdr.appendChild(qb);a.appendChild(hdr);
-  // Game canvas
-  var cv=document.createElement('canvas');cv.width=360;cv.height=420;
-  cv.style.cssText='display:block;width:100%;background:#0277BD;max-height:60vh;';
+
+  var cv=document.createElement('canvas');cv.width=360;cv.height=440;
+  cv.style.cssText='display:block;width:100%;touch-action:none;cursor:crosshair;flex:1;';
   a.appendChild(cv);
   var ctx=cv.getContext('2d');
-  // Instruction
-  var inst=document.createElement('div');inst.style.cssText='padding:10px;text-align:center;font-size:.78rem;color:#4A5568;flex-shrink:0';inst.textContent='看到魚時點擊畫面釣魚！魚越大分數越高！';a.appendChild(inst);
+
+  var inst=document.createElement('div');
+  inst.style.cssText='padding:8px;text-align:center;font-size:.76rem;color:#4A5568;flex-shrink:0;background:#EBF5FB';
+  inst.innerHTML='<b>第一次點</b>：投竿 ｜ <b>第二次點</b>：收竿（有魚就釣！）';
+  a.appendChild(inst);
+
   // Game state
-  var gameState={score:0,catches:0,timeLeft:30,fish:[],rod:{x:180,y:30,lineLen:30}};
+  var gs={
+    score:0,timeLeft:30,fish:[],
+    rod:{x:180,lineLen:30},   // lineLen=30 = up (收竿), cv.height-40 = down (投竿)
+    cast:false,               // false=收竿 true=投竿
+    retracting:false,         // animating retract
+    casting:false             // animating cast
+  };
+  var LINE_UP=30, LINE_DOWN=cv.height-40;
+  var raf;
+
   var fishTypes=[
-    {e:'🐟',sz:24,speed:2,pts:5,prob:.5},
-    {e:'🐠',sz:30,speed:2.5,pts:10,prob:.25},
-    {e:'🐡',sz:36,speed:1.5,pts:20,prob:.15},
-    {e:'🦈',sz:50,speed:3,pts:50,prob:.07},
-    {e:'💎',sz:20,speed:4,pts:100,prob:.03},
+    {e:'🐟',sz:22,speed:1.8,pts:5,prob:.45},
+    {e:'🐠',sz:28,speed:2.2,pts:10,prob:.25},
+    {e:'🐡',sz:34,speed:1.4,pts:20,prob:.15},
+    {e:'🦈',sz:48,speed:2.8,pts:50,prob:.1},
+    {e:'💎',sz:18,speed:3.5,pts:100,prob:.05},
   ];
-  // Spawn fish
+
   function spawnFish(){
     var r=Math.random(),cum=0;
     for(var fi=0;fi<fishTypes.length;fi++){
@@ -4081,113 +4143,149 @@ function rFishing(){
       if(r<cum){
         var ft=fishTypes[fi];
         var dir=Math.random()>0.5?1:-1;
-        gameState.fish.push({
-          x:dir>0?-50:cv.width+50,y:80+Math.random()*(cv.height-120),
-          dx:ft.speed*dir,e:ft.e,sz:ft.sz,pts:ft.pts,id:Date.now()+Math.random()
-        });
+        var minY=LINE_UP+60, maxY=LINE_DOWN-20;
+        gs.fish.push({x:dir>0?-60:cv.width+60,y:minY+Math.random()*(maxY-minY),dx:ft.speed*dir,e:ft.e,sz:ft.sz,pts:ft.pts});
         break;
       }
     }
   }
-  // Draw
-  var raf;
+
   function draw(){
     ctx.clearRect(0,0,cv.width,cv.height);
-    // Water background
-    var grad=ctx.createLinearGradient(0,0,0,cv.height);
-    grad.addColorStop(0,'#0288D1');grad.addColorStop(1,'#004D70');
-    ctx.fillStyle=grad;ctx.fillRect(0,0,cv.width,cv.height);
+    // Sky
+    var sky=ctx.createLinearGradient(0,0,0,cv.height*0.25);
+    sky.addColorStop(0,'#87CEEB');sky.addColorStop(1,'#B0DEF5');
+    ctx.fillStyle=sky;ctx.fillRect(0,0,cv.width,cv.height*0.25);
+    // Water
+    var water=ctx.createLinearGradient(0,cv.height*0.25,0,cv.height);
+    water.addColorStop(0,'#0288D1');water.addColorStop(1,'#004D70');
+    ctx.fillStyle=water;ctx.fillRect(0,cv.height*0.25,cv.width,cv.height*0.75);
+    // Water surface line
+    ctx.strokeStyle='rgba(255,255,255,0.4)';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(0,cv.height*0.25);ctx.lineTo(cv.width,cv.height*0.25);ctx.stroke();
     // Waves
-    ctx.strokeStyle='rgba(255,255,255,0.15)';ctx.lineWidth=2;
-    for(var wi=0;wi<5;wi++){
-      ctx.beginPath();var wy=40+wi*30;
-      for(var wx=0;wx<cv.width;wx+=4)ctx.lineTo(wx,wy+Math.sin((wx+Date.now()/300+wi*50)*0.05)*6);
+    ctx.strokeStyle='rgba(255,255,255,0.12)';ctx.lineWidth=1.5;
+    var t=Date.now()/400;
+    for(var wi=0;wi<4;wi++){
+      ctx.beginPath();
+      for(var wx=0;wx<=cv.width;wx+=8){
+        var wy=cv.height*0.25+20+wi*25+Math.sin(wx*0.04+t+wi)*5;
+        wx===0?ctx.moveTo(wx,wy):ctx.lineTo(wx,wy);
+      }
       ctx.stroke();
     }
-    // Rod
-    ctx.strokeStyle='#A0522D';ctx.lineWidth=3;
-    ctx.beginPath();ctx.moveTo(gameState.rod.x,0);ctx.lineTo(gameState.rod.x,20);ctx.stroke();
-    // Line
-    if(gameState.rod.lineLen>0){
-      ctx.strokeStyle='rgba(255,255,255,0.6)';ctx.lineWidth=1;
-      ctx.beginPath();ctx.moveTo(gameState.rod.x,20);ctx.lineTo(gameState.rod.x,gameState.rod.lineLen);ctx.stroke();
-      ctx.beginPath();ctx.arc(gameState.rod.x,gameState.rod.lineLen,5,0,Math.PI*2);
-      ctx.fillStyle='#FF6B35';ctx.fill();
-    }
     // Fish
-    ctx.font='bold 20px serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    gameState.fish.forEach(function(f){
+    gs.fish.forEach(function(f){
       ctx.save();
+      var fsz=Math.max(14,20*(f.sz/30))*1;
+      ctx.font=fsz+'px serif';ctx.textAlign='center';ctx.textBaseline='middle';
       if(f.dx<0){ctx.scale(-1,1);ctx.fillText(f.e,-f.x,f.y);}
       else ctx.fillText(f.e,f.x,f.y);
       ctx.restore();
     });
+    // Rod (fishing pole at top)
+    var rx=gs.rod.x;
+    ctx.strokeStyle='#8B4513';ctx.lineWidth=4;ctx.lineCap='round';
+    ctx.beginPath();ctx.moveTo(rx-15,8);ctx.lineTo(rx,28);ctx.stroke();
+    // Fishing line
+    var lineY=gs.rod.lineLen;
+    ctx.strokeStyle='rgba(220,220,220,0.85)';ctx.lineWidth=1.5;
+    ctx.setLineDash([]);
+    ctx.beginPath();ctx.moveTo(rx,28);ctx.lineTo(rx,lineY);ctx.stroke();
+    // Hook/bobber
+    var bobCol=gs.cast?'#FF4444':'#FF8C00';
+    ctx.beginPath();ctx.arc(rx,lineY,gs.cast?7:5,0,Math.PI*2);
+    ctx.fillStyle=bobCol;ctx.fill();
+    ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.stroke();
+    // Cast hint
+    if(!gs.cast&&!gs.casting){
+      ctx.fillStyle='rgba(255,255,255,0.7)';ctx.font='bold 12px system-ui';
+      ctx.textAlign='center';ctx.fillText('點擊投竿 ↓',rx,50);
+    } else if(gs.cast&&!gs.retracting){
+      ctx.fillStyle='rgba(255,255,0,0.8)';ctx.font='bold 12px system-ui';
+      ctx.textAlign='center';ctx.fillText('點擊收竿 ↑',rx,50);
+    }
     // Timer bar
-    var tp=gameState.timeLeft/30;
-    ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(0,cv.height-8,cv.width,8);
+    ctx.fillStyle='rgba(0,0,0,.25)';ctx.fillRect(0,cv.height-6,cv.width,6);
+    var tp=gs.timeLeft/30;
     ctx.fillStyle=tp>0.5?'#4CAF50':tp>0.25?'#FFD700':'#EF4444';
-    ctx.fillRect(0,cv.height-8,cv.width*tp,8);
+    ctx.fillRect(0,cv.height-6,cv.width*tp,6);
   }
-  // Game loop
-  var lastSpawn=0;
+
+  // Animation for casting/retracting
+  var animSpeed=18; // pixels per frame
   function loop(){
-    var now=Date.now();
-    if(now-lastSpawn>1200){spawnFish();lastSpawn=now;}
+    // Move line
+    if(gs.casting){
+      gs.rod.lineLen=Math.min(LINE_DOWN, gs.rod.lineLen+animSpeed);
+      if(gs.rod.lineLen>=LINE_DOWN){gs.rod.lineLen=LINE_DOWN;gs.cast=true;gs.casting=false;}
+    } else if(gs.retracting){
+      gs.rod.lineLen=Math.max(LINE_UP, gs.rod.lineLen-animSpeed*1.5);
+      if(gs.rod.lineLen<=LINE_UP){gs.rod.lineLen=LINE_UP;gs.cast=false;gs.retracting=false;}
+    }
     // Move fish
-    gameState.fish=gameState.fish.filter(function(f){
-      f.x+=f.dx;
-      return f.x>-100&&f.x<cv.width+100;
-    });
-    // Line stays where cast, retract after catch
+    var now=Date.now();
+    gs.fish=gs.fish.filter(function(f){f.x+=f.dx;return f.x>-100&&f.x<cv.width+100;});
     draw();
     raf=requestAnimationFrame(loop);
   }
-  // Timer
+
+  // Spawn timer
+  var lastSpawn=0;
   S.tid=setInterval(function(){
-    gameState.timeLeft--;
+    gs.timeLeft--;
     var el=document.getElementById('fish-score');
-    if(el)el.textContent='分數：'+gameState.score+' | ⏰'+gameState.timeLeft;
-    if(gameState.timeLeft<=0){
-      clrT();cancelAnimationFrame(raf);
-      endFishing(gameState.score);
-    }
-  },1000);
-  // Click to catch
-  // Move rod to click/tap position
-  function moveRod(e){
+    if(el)el.textContent='分數：'+gs.score+' | ⏰'+gs.timeLeft;
+    // Spawn fish every ~1.2s
+    gs.fish; // keep alive
+    if(gs.timeLeft<=0){clrT();cancelAnimationFrame(raf);endFishing(gs.score);}
+    // Auto-spawn 
+    if(Math.random()>0.15){spawnFish();}
+  },1200);
+
+  // Click handler
+  function handleClick(clientX, clientY){
     var rect=cv.getBoundingClientRect();
-    var cx3=(e.clientX-rect.left)*(cv.width/rect.width);
-    gameState.rod.x=Math.max(20,Math.min(cv.width-20,cx3));
+    var cx=(clientX-rect.left)*(cv.width/rect.width);
+    // Update rod x only when not cast
+    if(!gs.cast&&!gs.casting&&!gs.retracting){
+      gs.rod.x=Math.max(20,Math.min(cv.width-20,cx));
+    }
+    if(gs.casting||gs.retracting)return; // animating, ignore
+
+    if(!gs.cast){
+      // FIRST CLICK: cast line down
+      gs.casting=true;
+    } else {
+      // SECOND CLICK: try to catch, then retract
+      var lx=gs.rod.x, ly=gs.rod.lineLen;
+      var caught=false;
+      gs.fish=gs.fish.filter(function(f){
+        if(!caught&&Math.hypot(lx-f.x,ly-f.y)<f.sz*1.4){
+          caught=true;gs.score+=f.pts;
+          var el=document.getElementById('fish-score');
+          if(el)el.textContent='分數：'+gs.score+' | ⏰'+gs.timeLeft;
+          // Points popup
+          var pop=document.createElement('div');
+          pop.style.cssText='position:fixed;pointer-events:none;font-size:1.3rem;font-weight:900;color:#FFD700;z-index:9999;text-shadow:0 2px 4px rgba(0,0,0,.5);animation:fcu 1.2s ease forwards;left:'+clientX+'px;top:'+(clientY-30)+'px';
+          pop.textContent='+'+f.pts+' '+f.e;
+          document.body.appendChild(pop);setTimeout(function(){pop.remove()},1300);
+          return false;
+        }
+        return true;
+      });
+      if(!caught)toast('沒釣到 😅 再試一次！');
+      // Retract line
+      gs.retracting=true;gs.cast=false;
+    }
   }
-  cv.addEventListener('mousemove',function(e){if(!spinning)moveRod(e)});
-  cv.addEventListener('touchmove',function(e){e.preventDefault();if(!spinning&&e.touches[0])moveRod(e.touches[0])},{passive:false});
-  var spinning=false;
-  cv.addEventListener('click',function(e){
-    moveRod(e);
-    // Cast line to full length instantly
-    gameState.rod.lineLen=cv.height-30;
-    // Check if line tip is near any fish
-    var lx=gameState.rod.x,ly=gameState.rod.lineLen;
-    var caught=false;
-    gameState.fish=gameState.fish.filter(function(f){
-      if(!caught&&Math.hypot(lx-f.x,ly-f.y)<f.sz*1.2){
-        caught=true;gameState.score+=f.pts;gameState.catches++;
-        var el=document.getElementById('fish-score');
-        if(el)el.textContent='分數：'+gameState.score+' | ⏰'+gameState.timeLeft;
-        // Splash effect
-        ctx.fillStyle='rgba(255,255,255,0.6)';
-        ctx.beginPath();ctx.arc(f.x,f.y,30,0,Math.PI*2);ctx.fill();
-        // Show points popup
-        var popup=document.createElement('div');
-        popup.style.cssText='position:fixed;pointer-events:none;animation:fcu 1s ease forwards;font-size:1.2rem;font-weight:900;color:#FFD700;z-index:9999;left:'+((e.clientX))+'px;top:'+((e.clientY-20))+'px';
-        popup.textContent='+'+f.pts+'pts '+f.e;
-        document.body.appendChild(popup);setTimeout(function(){popup.remove()},1100);
-        gameState.rod.lineLen=30; // retract line
-        return false;
-      }
-      return true;
-    });
-  });
+
+  cv.addEventListener('click',function(e){handleClick(e.clientX,e.clientY);});
+  cv.addEventListener('touchend',function(e){
+    e.preventDefault();
+    if(e.changedTouches.length>0)handleClick(e.changedTouches[0].clientX,e.changedTouches[0].clientY);
+  },{passive:false});
+
   loop();
 }
 function endFishing(score){
