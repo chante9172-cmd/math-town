@@ -108,8 +108,8 @@ input[type=number]::-webkit-inner-spin-button{display:none}
 // ★ 在這裡填入你的 Supabase 設定
 // 去 Supabase → Settings → API 找到這兩個值
 // ═══════════════════════════════════════════════
-var SUPA_URL = ''; // 例：https://abcdefgh.supabase.co
-var SUPA_KEY = ''; // 例：eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+var SUPA_URL = 'https://bbheqrizaglidbfyrkuq.supabase.co';
+var SUPA_KEY = 'sb_publishable_FwGRDxGgM9vmXOAxwUjdAA_lT683X_o';
 // ═══════════════════════════════════════════════
 </script>
 <script>
@@ -118,7 +118,7 @@ var SUPA_KEY = ''; // 例：eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 // ============================================================
 // SUPABASE SYNC - fill in your project URL and anon key
 // ============================================================
-var SUPA_URL='';var SUPA_KEY=''; // loaded from config script above
+// SUPA_URL and SUPA_KEY defined in config script
 var supabase = null;
 
 function initSupabase(){
@@ -136,17 +136,20 @@ async function supabaseSave(){
   if(!supabase||!S.p)return false;
   var code=exportSaveCode();
   if(!code)return false;
+  var uname=(S.p.name||S.p.displayName||'').toLowerCase().replace(/[^a-z0-9_]/g,'_');
+  if(!uname)return false;
   try{
     var res=await supabase.from('mt_saves').upsert({
-      username:S.p.displayName.toLowerCase(),
-      display_name:S.p.displayName,
+      username:uname,
+      display_name:S.p.displayName||S.p.name,
       save_code:code,
-      level:S.p.level,
-      coins:S.p.coins,
+      level:S.p.level||1,
+      coins:S.p.coins||0,
       updated_at:new Date().toISOString()
     },{onConflict:'username'});
-    return !res.error;
-  }catch(e){return false}
+    if(res.error){console.warn('Supabase save error:',res.error.message);return false;}
+    return true;
+  }catch(e){console.warn('Supabase save failed:',e);return false}
 }
 
 async function supabaseLoad(username){
@@ -862,12 +865,17 @@ function saveAccs(){try{localStorage.setItem('mt_a',JSON.stringify(S.accounts))}
 function hPin(p){var h=0;for(var i=0;i<p.length;i++)h=(h*31+p.charCodeAt(i))&0xFFFFFF;return h.toString(16)}
 function getKey(){try{return localStorage.getItem('mt_k')||''}catch(e){return''}}
 async function saveP(){if(!S.p)return;var k='mt_p_'+S.p.name,d=JSON.stringify(S.p);try{if(window.storage)await window.storage.set(k,d,true)}catch(e){}try{localStorage.setItem(k,d)}catch(e){
-  if(window._supabaseAutoSync)window._supabaseAutoSync();
+  // Debounced cloud sync
+  if(supabase&&S.p){
+    clearTimeout(window._spT);
+    window._spT=setTimeout(function(){supabaseSave();},2000);
+  }
 }
+} // close saveP
 async function loadPD(name){var k='mt_p_'+name;try{if(window.storage){var r=await window.storage.get(k,true);if(r&&r.value)return JSON.parse(r.value)}}catch(e){}try{var d=localStorage.getItem(k);if(d)return JSON.parse(d)}catch(e){}return null}
 function today(){return new Date().toISOString().slice(0,10)}
 function expN(lv){return lv*100}
-function newP(name,pin,disp){return{name:name,pin:hPin(pin),displayName:disp||name,coins:150,level:1,exp:0,totalC:0,totalA:0,bestStreak:0,totalCE:150,inv:{},bldgInv:{},town:(function(){var t=Array(MSZ*MSZ).fill(null);t[5*MSZ+5]='WH';return t}()),landSize:20,farms:{},factories:{},animalSlots:{},orders:[],collect:{},mgDone:{},settings:{hw:false},loginDays:1,lastDay:today(),warehouseCap:100,achievements:{},dailyQuest:null,questDone:false}}
+function newP(name,pin,disp){return{name:name,pin:hPin(pin),displayName:disp||name,av:'🧒',coins:150,level:1,exp:0,totalC:0,totalA:0,bestStreak:0,totalCE:150,inv:{},bldgInv:{},town:(function(){var t=Array(MSZ*MSZ).fill(null);t[5*MSZ+5]='WH';return t}()),landSize:20,farms:{},factories:{},animalSlots:{},orders:[],collect:{},mgDone:{},settings:{hw:false},loginDays:1,lastDay:today(),warehouseCap:100,achievements:{},dailyQuest:null,questDone:false}}
 function rnd(a,b){return Math.floor(Math.random()*(b-a+1))+a}
 function pick(a){return a[rnd(0,a.length-1)]}
 function fmt(s){if(s<0)s=0;return('0'+Math.floor(s/60)).slice(-2)+':'+('0'+(s%60)).slice(-2)}
@@ -2546,13 +2554,28 @@ function render(){
 
 // ---- UI HELPERS ----
 function tbH(){
-  if(!S.p)return'';
+  if(!S.p)return document.createElement('div');
   var p=S.p,rc=rdyCnt(),xp=Math.min(100,Math.round(p.exp/expN(p.level)*100));
   var el=document.createElement('div');el.className='TB';
-  el.innerHTML='<div style="display:flex;align-items:center;gap:8px"><div class="AV">🧒</div><div><div style="color:#fff;font-size:.78rem;font-weight:700">'+p.displayName+'<span class="LVB">Lv.'+p.level+'</span></div><div class="XPW"><div class="XPB" style="width:'+xp+'%"></div></div></div></div><div style="display:flex;align-items:center;gap:6px">'+(rc>0?'<div class="COINB" style="background:rgba(255,107,53,.35);cursor:pointer" id="rc-btn">📦'+rc+'</div>':'')+'<div class="COINB">🪙 '+p.coins.toLocaleString()+'</div><button id="set-btn" style="background:none;border:none;color:rgba(255,255,255,.8);font-size:1rem;cursor:pointer">⚙️</button></div>';
-  el.querySelector('#set-btn')?.addEventListener('click',function(){go('settings')});
-  el.querySelector('#rc-btn')?.addEventListener('click',function(){go('town')});
-  return el
+  var left=document.createElement('div');left.style.cssText='display:flex;align-items:center;gap:8px';
+  var av=document.createElement('div');av.className='AV';av.style.cursor='pointer';
+  av.textContent=p.av||'🧒';
+  av.addEventListener('click',function(){showAvatarPicker()});
+  var nd=document.createElement('div');
+  nd.innerHTML='<div style="color:#fff;font-size:.78rem;font-weight:700">'+p.displayName+'<span class="LVB">Lv.'+p.level+'</span></div><div class="XPW"><div class="XPB" style="width:'+xp+'%"></div></div>';
+  left.appendChild(av);left.appendChild(nd);
+  var right=document.createElement('div');right.style.cssText='display:flex;align-items:center;gap:6px';
+  if(rc>0){
+    var rb=document.createElement('div');rb.className='COINB';
+    rb.style.cssText='background:rgba(255,107,53,.35);cursor:pointer';
+    rb.textContent='📦'+rc;rb.addEventListener('click',function(){go('town')});
+    right.appendChild(rb);
+  }
+  var cb=document.createElement('div');cb.className='COINB';cb.textContent='🪙 '+p.coins.toLocaleString();right.appendChild(cb);
+  var sb=document.createElement('button');sb.style.cssText='background:none;border:none;color:rgba(255,255,255,.8);font-size:1rem;cursor:pointer';
+  sb.textContent='⚙️';sb.addEventListener('click',function(){go('settings')});right.appendChild(sb);
+  el.appendChild(left);el.appendChild(right);
+  return el;
 }
 function bnH(act){
   var defs=[['home','🏠','首頁'],['town','🏘','小鎮'],['quiz','📝','答題'],['orders','📋','訂單'],['shop','🏪','商店']];
@@ -2602,11 +2625,29 @@ async function doReg(){
   if(!disp){err.textContent='請輸入顯示名稱';return}
   if(!/^\d{4}$/.test(pin)){err.textContent='PIN需為4位數字';return}
   if(pin!==pin2){err.textContent='PIN不一致';return}
-  S.accounts=getAccs();
-  if(S.accounts.find(function(a){return a.name===name})){err.textContent='帳號已存在';return}
-  S.accounts.push({name:name,displayName:disp,pinHash:hPin(pin)});saveAccs();
-  S.p=newP(name,pin,disp);await saveP();genOrders();startTick();go('home')
+  // Check if username taken (local + cloud)
+  var localAccs=getAccs();
+  if(localAccs.find(function(a){return a.name===name})){err.textContent='帳號已存在';return}
+  if(supabase){
+    err.textContent='檢查帳號中…';
+    try{
+      var chk=await supabase.from('mt_saves').select('username').eq('username',name).single();
+      if(chk.data){err.textContent='帳號已被使用，請換一個';return}
+    }catch(e){}
+  }
+  err.textContent='建立中…';
+  var p=newP(name,pin,disp);
+  S.p=p;
+  localAccs.push({name:name,displayName:disp,pinHash:hPin(pin)});saveAccs();
+  await saveP();
+  // Save to cloud immediately
+  if(supabase){
+    err.textContent='☁️ 同步到雲端…';
+    await supabaseSave();
+  }
+  genOrders();startTick();go('home');
 }
+
 function rLogin(){
   S.accounts=getAccs();
   var a=app();a.innerHTML='';
@@ -2640,26 +2681,52 @@ async function doLogin(){
   var err=document.getElementById('lerr');
   if(!name){err.textContent='請輸入帳號';return}
   if(!/^\d{4}$/.test(pin)){err.textContent='PIN需為4位數字';return}
-  S.accounts=getAccs();
-  var acc=S.accounts.find(function(a){return a.name===name&&a.pinHash===hPin(pin)});
-  if(!acc){var pd=await loadPD(name);if(pd&&pd.pin===hPin(pin)){acc={name:name,displayName:pd.displayName||name,pinHash:hPin(pin)};if(!S.accounts.find(function(a){return a.name===name})){S.accounts.push(acc);saveAccs()}}}
-  if(!acc){err.textContent='帳號或PIN錯誤';return}
-  var p=await loadPD(name);if(!p)p=newP(name,pin,acc.displayName);
-  ['farms','factories','animalSlots','bldgInv','collect','mgDone'].forEach(function(k){if(!p[k])p[k]={}});
-  // Ensure warehouse exists on map
-  var whPlaced=p.town.some(function(t){return t==='WH'});
-  if(!whPlaced){
-    // Place warehouse at a visible spot - row 2 col 2
-    var whIdx=2*MSZ+2;
-    if(p.town[whIdx])whIdx=3*MSZ+3;
-    if(p.town[whIdx]){for(var wi=0;wi<p.town.length;wi++){if(!p.town[wi]){p.town[wi]='WH';break}}}
-    else p.town[whIdx]='WH';
-    saveP();
+  err.textContent='登入中…';
+  // Ensure Supabase is initialized
+  if(!supabase)initSupabase();
+  var p=null;
+  // 1. Try Supabase first (cloud - works on any device)
+  if(supabase){
+    try{
+      err.textContent='☁️ 從雲端載入中…';
+      var res=await supabase.from('mt_saves').select('*').eq('username',name).single();
+      if(res.error&&res.error.code!=='PGRST116'){
+        err.textContent='雲端錯誤：'+res.error.message;
+      } else if(res.data&&res.data.save_code){
+        var cloud=importSaveCode(res.data.save_code);
+        if(cloud&&cloud.pin===hPin(pin)){p=cloud;p.name=name;}
+        else if(cloud){err.textContent='PIN錯誤';return}
+      }
+    }catch(e){err.textContent='連線失敗：'+e.message;}
   }
-  if(!p.displayName)p.displayName=acc.displayName||name;
-  while(p.town.length<MSZ*MSZ)p.town.push(null);
-  if(p.lastDay!==today()){p.coins+=20;p.totalCE=(p.totalCE||0)+20;p.lastDay=today();p.loginDays=(p.loginDays||0)+1}
+  // 2. Fallback: localStorage
+  if(!p){
+    var pd=await loadPD(name);
+    if(pd&&pd.pin===hPin(pin)){
+      p=pd;
+      // Push to cloud so other devices can find it
+      if(supabase){
+        S.p=p;
+        err.textContent='☁️ 同步帳號到雲端…';
+        await supabaseSave();
+      }
+    }
+    else if(pd){err.textContent='PIN錯誤';return}
+  }
+  if(!p){
+    err.textContent='找不到帳號！請先在這台裝置登入過，或重新註冊';
+    return;
+  }
+  // Set defaults
+  ['farms','factories','animalSlots','bldgInv','collect','mgDone'].forEach(function(k){if(!p[k])p[k]={}});
+  if(!p.av)p.av='🧒';
+  if(!p.displayName)p.displayName=p.n||name;
+  if(!p.name)p.name=name;
+  while(p.town&&p.town.length<MSZ*MSZ)p.town.push(null);
+  if(!p.town){p.town=Array(MSZ*MSZ).fill(null);}
   if(!p.orders||p.orders.length<1)genOrders();
+  // Daily login bonus
+  if(p.lastDay!==today()){p.coins=(p.coins||0)+20;p.totalCE=(p.totalCE||0)+20;p.lastDay=today();p.loginDays=(p.loginDays||0)+1;}
   // Daily quest
   if(!p.dailyQuest||p.dailyQuest.day!==today()){
     var quests=[
@@ -2670,8 +2737,20 @@ async function doLogin(){
     ];
     p.dailyQuest={day:today(),quest:quests[Math.floor(Math.random()*quests.length)],done:false};
   }
-  S.p=p;await saveP();startTick();go('home')
+  // Ensure WH on map
+  if(!p.town.some(function(t){return t==='WH';})){
+    for(var wi=0;wi<p.town.length;wi++){if(!p.town[wi]){p.town[wi]='WH';break;}}
+  }
+  // Save to local accounts list
+  var accs=getAccs();
+  if(!accs.find(function(a){return a.name===name;})){
+    accs.push({name:name,displayName:p.displayName,pinHash:hPin(pin)});saveAccs();
+  }
+  S.p=p;
+  await saveP();
+  startTick();go('home');
 }
+
 function rHome(){
   var p=S.p;
   if(!p){rLogin();return}
@@ -2708,7 +2787,6 @@ function rHome(){
   // ── Quick access shortcuts ──
   var shortcuts=mkDiv('');shortcuts.style.cssText='display:grid;grid-template-columns:repeat(4,1fr);gap:8px';
   [
-    {e:'🎣',n:'釣魚',fn:function(){rFishing()}},
     {e:'🎰',n:'轉盤',fn:function(){showLuckySpin()}},
     {e:'📅',n:'週挑戰',fn:function(){rWeekly()}},
     {e:'📖',n:'圖鑑',fn:function(){rCollection()}},
@@ -2837,8 +2915,8 @@ function cClick(idx,bId,bd){
   // Placing mode
   if(S.placing){
     if(!bId){placeB(idx)}
-    else toast('此格已有建築，請點空格');
-    return
+    else toast('此格已有建築！');
+    return;
   }
   if(!bId){return}
   // Multi-tile PART cell - redirect to anchor
@@ -2938,19 +3016,34 @@ function showFacPopup(idx,bId){
 
 function placeB(idx){
   var p=S.p,b=IT[S.placing];
+  if(!S.placing)return;
+  // Must have at least 1 in inventory
+  if(!(p.bldgInv[S.placing]>=1)){toast('庫存不足');S.placing=null;rTown();return;}
   // WH can only be placed once
   if(S.placing==='WH'&&p.town.some(function(t){return t==='WH'||(t&&t.indexOf('WH_PART_')===0)})){
     toast('倉庫已存在！每個小鎮只能有一個');S.placing=null;rTown();return;
   }
-  p.town[idx]=S.placing;p.bldgInv[S.placing]--;if(p.bldgInv[S.placing]<=0)delete p.bldgInv[S.placing];
+  // Multi-tile check
+  if(MULTITILE[S.placing]){
+    if(!canPlaceMulti(idx,S.placing)){toast('空間不夠！請選其他位置');return;}
+    placeMulti(idx,S.placing);
+  } else {
+    p.town[idx]=S.placing;
+  }
+  p.bldgInv[S.placing]--;
+  if(p.bldgInv[S.placing]<=0)delete p.bldgInv[S.placing];
   if(b&&(b.coin||b.exp))p.collect[idx]={lastD:''};
   if(b&&b.cat==='farm')p.farms[idx]={crop:b.crop,done:false,endTime:0};
   if(b&&b.cat==='animal')p.animalSlots[idx]={animal:b.animal,fed:false,ready:false};
   if(b&&b.cat==='factory')p.factories[idx]={queue:[]};
-  S._justPlaced=Date.now();
-  if(!Object.keys(p.bldgInv).some(function(k){return p.bldgInv[k]>0}))S.placing=null;
+  // Only keep placing mode if still have inventory
+  if(p.bldgInv[S.placing]>=1){
+    // still have more, keep placing
+  } else {
+    S.placing=null; // always stop after placing
+  }
   checkAchievements('build',1);
-  saveP();rTown()
+  saveP();rTown();
 }
 function fClick(idx,bd){
   var f=S.p.farms[idx]||(S.p.farms[idx]={crop:null,done:false,endTime:0});
@@ -3019,6 +3112,7 @@ function showBuildingPopup(idx,bd){
   if(bd.cat==='factory'){showFacPopup(idx,bd.id);return}
   if(bd.warehouse){
     // Show warehouse info
+    var p=S.p;
     var ov=document.createElement('div');ov.className='POPUP';
     var box=document.createElement('div');box.className='PBX';
     box.innerHTML='<div style="text-align:center;font-size:2.5rem">📦</div><div style="text-align:center;font-weight:700;font-size:1rem;margin:8px 0">倉庫</div>';
@@ -3028,19 +3122,72 @@ function showBuildingPopup(idx,bd){
     var pct=Math.round(used/cap*100);
     info.innerHTML='<div style="display:flex;justify-content:space-between;margin-bottom:8px"><span style="font-size:.9rem;font-weight:700">📦 儲存量</span><span style="font-size:.9rem;font-weight:700;color:'+(pct>80?'#EF4444':'#2E7D32')+'">'+used+' / '+cap+'</span></div><div style="background:#E0E0E0;border-radius:4px;height:8px;overflow:hidden"><div style="background:'+(pct>80?'#EF4444':'#4CAF50')+';height:100%;width:'+pct+'%;border-radius:4px"></div></div><div style="font-size:.68rem;color:#9EA8B1;margin-top:6px">Lv.'+S.p.level+' · 每升一級 +25 格空間</div>';
     box.appendChild(info);
-    var cl=document.createElement('button');cl.style.cssText='display:block;width:100%;padding:11px;background:#F7F9FA;border:1.5px solid #E0E7EF;color:#1B2631;border-radius:12px;font-size:.88rem;cursor:pointer;font-family:inherit';cl.textContent='關閉';cl.addEventListener('click',function(){ov.remove()});
+    // Move button for WH
+    var mvWH=document.createElement('button');mvWH.className='BTN B-SK BW';mvWH.style.padding='10px';mvWH.textContent='🔀 移動倉庫';
+    mvWH.addEventListener('click',function(){ov.remove();removeMulti(idx,'WH');S.p.bldgInv['WH']=1;S.placing='WH';saveP();rTown();toast('點空格放置倉庫');});
+    box.appendChild(mvWH);
+    // Sell items section
+    var goods2=Object.keys(p.inv).filter(function(id){return(p.inv[id]||0)>0&&GD[id]});
+    if(goods2.length>0){
+      var sellHdr=document.createElement('div');sellHdr.style.cssText='font-size:.74rem;font-weight:700;color:#2E7D32;margin:10px 0 6px';sellHdr.textContent='💰 出售貨物（點一下賣一個，長按全賣）';
+      box.appendChild(sellHdr);
+      var ig2=document.createElement('div');ig2.style.cssText='display:grid;grid-template-columns:repeat(4,1fr);gap:6px;max-height:180px;overflow-y:auto';
+      goods2.forEach(function(id){
+        var g=GD[id];if(!g)return;
+        var itm2=document.createElement('div');
+        itm2.style.cssText='text-align:center;padding:7px 4px;border-radius:10px;background:#F0FFF4;border:1px solid #A5D6A7;cursor:pointer;position:relative';
+        itm2.innerHTML='<div style="font-size:1.3rem">'+g.e+'</div>'+
+          '<div style="font-size:.55rem;font-weight:700;color:#1B5E20">'+g.n+'</div>'+
+          '<div style="font-size:.6rem;color:#F59E0B;font-weight:700">×'+(p.inv[id]||0)+'</div>'+
+          '<div style="font-size:.55rem;color:#388E3C">🪙'+g.sell+'/個</div>';
+        itm2.addEventListener('click',(function(gid,g,itm2){return function(){
+          if(!(p.inv[gid]>=1))return;
+          var cnt=p.inv[gid]||0;
+          // Confirm popup
+          var cov=document.createElement('div');cov.className='POPUP';
+          var cbox=document.createElement('div');cbox.className='PBX';cbox.style.textAlign='center';
+          cbox.innerHTML='<div style="font-size:2.5rem">'+g.e+'</div>'+
+            '<div style="font-weight:700;font-size:.95rem;margin:8px 0">出售 '+g.n+'</div>'+
+            '<div style="font-size:.75rem;color:#9EA8B1;margin-bottom:14px">庫存：'+cnt+'個　每個 🪙'+g.sell+'</div>';
+          // Sell 1
+          var s1=document.createElement('button');s1.className='BTN B-GR BW';s1.style.padding='11px';
+          s1.textContent='賣 1 個（+🪙'+g.sell+'）';
+          s1.addEventListener('click',function(){
+            if(!(p.inv[gid]>=1))return;
+            p.inv[gid]--;if(p.inv[gid]<=0)delete p.inv[gid];
+            p.coins+=g.sell;p.totalCE=(p.totalCE||0)+g.sell;
+            saveP();toast('賣出 '+g.e+' +🪙'+g.sell);
+            cov.remove();
+            itm2.querySelector('div:nth-child(3)').textContent='×'+(p.inv[gid]||0);
+            if(!(p.inv[gid]>=1))itm2.style.opacity='.4';
+          });
+          // Sell all
+          var sa=document.createElement('button');sa.className='BTN B-OR BW';sa.style.padding='11px';
+          var total=cnt*g.sell;
+          sa.textContent='全賣 '+cnt+'個（+🪙'+total+'）';
+          sa.addEventListener('click',function(){
+            var c2=p.inv[gid]||0;var t2=c2*g.sell;
+            p.coins+=t2;p.totalCE=(p.totalCE||0)+t2;
+            delete p.inv[gid];saveP();toast('全賣 '+g.e+'×'+c2+' +🪙'+t2);
+            cov.remove();
+            itm2.querySelector('div:nth-child(3)').textContent='×0';
+            itm2.style.opacity='.4';
+          });
+          var cc=document.createElement('button');cc.className='BTN B-WH BW';cc.style.cssText='padding:9px;font-size:.82rem';cc.textContent='取消';
+          cc.addEventListener('click',function(){cov.remove()});
+          cbox.appendChild(s1);cbox.appendChild(sa);cbox.appendChild(cc);
+          cov.appendChild(cbox);cov.addEventListener('click',function(e){if(e.target===cov)cov.remove()});
+          document.body.appendChild(cov);
+        }})(id,g,itm2));
+        ig2.appendChild(itm2);
+      });
+      box.appendChild(ig2);
+    }
+    var cl=document.createElement('button');cl.style.cssText='display:block;width:100%;padding:11px;background:#F7F9FA;border:1.5px solid #E0E7EF;color:#1B2631;border-radius:12px;font-size:.88rem;cursor:pointer;font-family:inherit;margin-top:10px';cl.textContent='關閉';cl.addEventListener('click',function(){ov.remove()});
     box.appendChild(cl);ov.appendChild(box);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove()});document.body.appendChild(ov);
     return;
   }
-  if(S.edit){showRem(idx,bd)}
-  else{
-    // Non-edit: show building info
-    var ov2=document.createElement('div');ov2.className='POPUP';
-    var box2=document.createElement('div');box2.className='PBX';
-    box2.innerHTML='<div style="text-align:center;font-size:2.2rem;margin-bottom:6px">'+bd.e+'</div><div style="text-align:center;font-weight:700;margin-bottom:8px">'+bd.n+'</div>'+(bd.coin?'<div style="background:#E8F5E9;border-radius:10px;padding:8px;text-align:center;font-size:.82rem;color:#2E7D32;margin-bottom:10px">每日收入 🪙'+bd.coin+'</div>':'');
-    var cl2=document.createElement('button');cl2.style.cssText='display:block;width:100%;padding:11px;background:#F7F9FA;border:1.5px solid #E0E7EF;color:#1B2631;border-radius:12px;font-size:.88rem;cursor:pointer;font-family:inherit';cl2.textContent='關閉';cl2.addEventListener('click',function(){ov2.remove()});
-    box2.appendChild(cl2);ov2.appendChild(box2);ov2.addEventListener('click',function(e){if(e.target===ov2)ov2.remove()});document.body.appendChild(ov2);
-  }
+  showRem(idx,bd);
 }
 
 function showRem(idx,bd){
@@ -3063,10 +3210,12 @@ function showRem(idx,bd){
   var mvBtn=document.createElement('button');mvBtn.className='BTN B-SK BW';mvBtn.style.padding='11px';mvBtn.textContent='🔀 移動';
   mvBtn.addEventListener('click',function(){
     ov.remove();
-    removeMulti(idx,bd.id||S.p.town[idx]);
-    S.p.bldgInv[bd.id||S.p.town[idx]]=(S.p.bldgInv[bd.id||S.p.town[idx]]||0)+1;
-    S.placing=bd.id||S.p.town[idx];
-    saveP();rTown();toast('選擇要放置的位置');
+    var bid=bd.id||S.p.town[idx];
+    removeMulti(idx,bid);
+    // Set exactly 1 in inventory for placement
+    S.p.bldgInv[bid]=1;
+    S.placing=bid;
+    saveP();rTown();toast('點空格放置');
   });
   box.appendChild(mvBtn);
   // Remove (non-WH only)
@@ -3180,7 +3329,7 @@ function rShop(){
     var si=mkDiv('SI'+(cnt>0?' owned':'')+(!canBuy?' locked':''));
     if(cnt>0){var cn=mkDiv('SICNT');cn.textContent='×'+cnt;si.appendChild(cn)}
     var siContent=document.createElement('div');siContent.innerHTML='<div style="font-size:1.9rem;margin-bottom:3px">'+b.e+'</div><div style="font-size:.62rem;font-weight:700">'+b.n+'</div>'+(prod?'<div class="PTAG">'+prod+'</div>':'')+(b.lv&&!unlocked?'<div style="font-size:.56rem;color:#EF4444;margin-top:2px">Lv.'+b.lv+'解鎖</div>':'')+'<div style="background:#FFFDE7;border-radius:5px;padding:2px 5px;font-size:.6rem;font-weight:700;color:#7B5E00;margin-top:3px">🪙'+b.c+'</div>';while(siContent.firstChild)si.appendChild(siContent.firstChild);
-    if(canBuy)(function(bid,bc){si.addEventListener('click',function(){if(S.p.coins<bc)return;S.p.coins-=bc;S.p.bldgInv[bid]=(S.p.bldgInv[bid]||0)+1;saveP();toast('已購買！進小鎮放置');rShop()})})(b.id,b.c);
+    if(canBuy)(function(bid,bc){si.addEventListener('click',function(){if(S.p.coins<bc)return;if(bid==='WH'&&(S.p.bldgInv['WH']||0)+(S.p.town.some(function(t){return t==='WH'||(t&&t.indexOf('WH_PART_')===0)})?1:0)>=1){toast('倉庫只能有一個！');return;}S.p.coins-=bc;S.p.bldgInv[bid]=(S.p.bldgInv[bid]||0)+1;saveP();toast('已購買！進小鎮放置');rShop()})})(b.id,b.c);
     sg.appendChild(si);
   });
   pg.appendChild(sg);wrap.appendChild(pg);a.appendChild(wrap);a.appendChild(bnH('shop'));
@@ -3375,7 +3524,7 @@ function q99Mul(){
   if(n>=50)return 1.2;
   return 1.0;
 }
-function startQ(){var n=(S.mode==='ck'||S.mode==='99')?10:20;S.qs=makeQs(S.mode,S.grade,n);S.qi=0;S.qAns=[];S.streak=0;S.maxStreak=0;S.earned=0;S.t=S.tl*60;S.sc='quizrun';rQ();startTimer()}
+function startQ(){var n=S.mode==='99'?(S.q99n||20):S.mode==='ck'?10:20;S.qs=makeQs(S.mode,S.grade,n);S.qi=0;S.qAns=[];S.streak=0;S.maxStreak=0;S.earned=0;S.t=S.tl*60;S.sc='quizrun';rQ();startTimer()}
 function rQ(){
   var q=S.qs[S.qi],n=S.qs.length,m=getMD(S.mode);
   var a=app();a.innerHTML='';
@@ -3674,12 +3823,7 @@ function rMgh(){
   if(!mg1d)c1.addEventListener('click',function(){go('mg1')});pg.appendChild(c1);
   var c2=mkDiv('CARD'+(mg2d?' opacity:.7':''));c2.style.cursor=mg2d?'not-allowed':'pointer';c2.innerHTML='<div style="display:flex;align-items:center;gap:12px"><div style="width:50px;height:50px;border-radius:14px;background:#FFF3E0;display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0">⚡</div><div style="flex:1"><div style="font-weight:700;font-size:.9rem">速算泡泡</div><div style="font-size:.68rem;color:#4CAF50">最高 🪙 '+(30+p.level*2)+'</div></div><div style="font-size:.75rem;font-weight:700;color:'+(mg2d?'#9EA8B1':'#E65100')+'">'+(mg2d?'✅':'▶ 開始')+'</div></div>';
   if(!mg2d)c2.addEventListener('click',function(){go('mg2')});pg.appendChild(c2);
-  // Fishing
-  var cf=mkDiv('CARD'+(p.mgDone&&p.mgDone.fish===today()?' opacity:.7':''));cf.style.cursor=(p.mgDone&&p.mgDone.fish===today())?'not-allowed':'pointer';
-  cf.innerHTML='<div style="display:flex;align-items:center;gap:12px"><div style="width:50px;height:50px;border-radius:14px;background:#E0F2F1;display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0">🎣</div><div style="flex:1"><div style="font-weight:700;font-size:.9rem">釣魚時間</div><div style="font-size:.68rem;color:#4CAF50">30秒內盡量釣！</div></div><div style="font-size:.75rem;font-weight:700;color:'+(p.mgDone&&p.mgDone.fish===today()?'#9EA8B1':'#0277BD')+'">'+(p.mgDone&&p.mgDone.fish===today()?'✅':'▶ 開始')+'</div></div>';
-  if(!(p.mgDone&&p.mgDone.fish===today()))cf.addEventListener('click',function(){rFishing()});
-  pg.appendChild(cf);
-  // Weekly challenges
+  // Fishing  // Weekly challenges
   var cwk=mkDiv('CARD');cwk.style.cursor='pointer';
   var wkchallenges=getWeekChallenges();var wkDone=wkchallenges.filter(function(c){return c.done}).length;
   cwk.innerHTML='<div style="display:flex;align-items:center;gap:12px"><div style="width:50px;height:50px;border-radius:14px;background:#FFF8E1;display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0">📅</div><div style="flex:1"><div style="font-weight:700;font-size:.9rem">本週挑戰</div><div style="font-size:.68rem;color:#F59E0B">完成 '+wkDone+'/3 項挑戰</div></div><div style="font-size:.75rem;font-weight:700;color:#F59E0B">'+( wkDone===3?'✅ 全完成':'▶ 查看')+'</div></div>';
@@ -3772,7 +3916,22 @@ function rSet(){
   syncBtn.innerHTML='👤 帳號同步 / 匯出存檔';
   syncBtn.addEventListener('click',function(){rAccountSync()});
   pg.appendChild(syncBtn);
-  var lo=document.createElement('button');lo.className='BTN B-RD BW';lo.style.padding='12px';lo.textContent='🚪 登出';lo.addEventListener('click',function(){if(!confirm('確定要登出？'))return;S.p=null;S.edit=false;S.placing=null;S.mode=null;if(S.ftick){clearInterval(S.ftick);S.ftick=null}go('splash')});pg.appendChild(lo);
+  var lo=document.createElement('button');lo.className='BTN B-RD BW';lo.style.padding='12px';lo.textContent='🚪 登出';lo.addEventListener('click',function(){
+  var ov=document.createElement('div');ov.className='POPUP';
+  var box=document.createElement('div');box.className='PBX';box.style.textAlign='center';
+  box.innerHTML='<div style="font-size:2rem">🚪</div><div style="font-weight:700;font-size:.95rem;margin:10px 0">確定要登出嗎？</div>';
+  var yes=document.createElement('button');yes.className='BTN B-RD BW';yes.style.padding='11px';yes.textContent='確定登出';
+  yes.addEventListener('click',function(){
+    ov.remove();S.p=null;S.edit=false;S.placing=null;S.mode=null;
+    if(S.ftick){clearInterval(S.ftick);S.ftick=null}
+    go('splash');
+  });
+  var no=document.createElement('button');no.className='BTN B-WH BW';no.style.cssText='padding:9px;font-size:.85rem';no.textContent='取消';
+  no.addEventListener('click',function(){ov.remove()});
+  box.appendChild(yes);box.appendChild(no);ov.appendChild(box);
+  ov.addEventListener('click',function(e){if(e.target===ov)ov.remove()});
+  document.body.appendChild(ov);
+});pg.appendChild(lo);
   var bk=document.createElement('button');bk.className='BTN B-WH BW';bk.style.cssText='padding:10px;font-size:.82rem';bk.textContent='← 返回';bk.addEventListener('click',function(){go('home')});pg.appendChild(bk);
   a.appendChild(pg);a.appendChild(bnH('home'));
 }
@@ -3807,11 +3966,13 @@ var SYNC_KEY = '$2a$10$placeholder'; // public read bin
 function exportSaveCode(){
   var p=S.p;
   var lite={
-    n:p.displayName,lv:p.level,exp:p.exp,coins:p.coins,
-    town:p.town,inv:p.inv,bldgInv:p.bldgInv,farms:p.farms,
+    n:p.displayName,name:p.name,lv:p.level,level:p.level,exp:p.exp,coins:p.coins,
+    town:p.town,inv:p.inv,bldgInv:p.bldgInv,farms:p.farms,factories:p.factories,
+    animalSlots:p.animalSlots,orders:p.orders,collect:p.collect,mgDone:p.mgDone,
     achievements:p.achievements,totalCE:p.totalCE,totalA:p.totalA,
     totalC:p.totalC,loginDays:p.loginDays,settings:p.settings,
-    warehouseCap:p.warehouseCap,_everHad:p._everHad
+    warehouseCap:p.warehouseCap,_everHad:p._everHad,av:p.av,pin:p.pin,
+    landSize:p.landSize,totalOrders:p.totalOrders,bestStreak:p.bestStreak
   };
   try{return btoa(unescape(encodeURIComponent(JSON.stringify(lite))))}
   catch(e){return null}
@@ -3821,6 +3982,20 @@ function importSaveCode(code){
   try{
     var data=JSON.parse(decodeURIComponent(escape(atob(code.trim()))));
     if(!data.n)throw new Error('invalid');
+    // Ensure name field exists (sync code stores displayName as .n)
+    if(!data.name)data.name=data.n.toLowerCase().replace(/[^a-z0-9]/g,'_');
+    if(!data.displayName)data.displayName=data.n;
+    if(!data.av)data.av='🧒';
+    if(!data.town)data.town=Array(MSZ*MSZ).fill(null);
+    if(!data.inv)data.inv={};
+    if(!data.bldgInv)data.bldgInv={};
+    if(!data.farms)data.farms={};
+    if(!data.factories)data.factories={};
+    if(!data.animalSlots)data.animalSlots={};
+    if(!data.orders)data.orders=[];
+    if(!data.collect)data.collect={};
+    if(!data.mgDone)data.mgDone={};
+    if(!data.settings)data.settings={hw:false};
     return data;
   }catch(e){return null}
 }
@@ -3858,7 +4033,7 @@ function rAccountSync(){
   var myCard=mkDiv('CARD');myCard.style.cssText='background:linear-gradient(135deg,#E8F5E9,#E3F2FD)';
   myCard.innerHTML='<div style="font-size:.8rem;font-weight:700;margin-bottom:6px">目前帳號</div>'+
     '<div style="display:flex;align-items:center;gap:10px">'+
-    '<div style="font-size:2rem">'+S.p.av+'</div>'+
+    '<div style="font-size:2rem">'+(S.p.av||'🧒')+'</div>'+
     '<div><div style="font-weight:700">'+S.p.displayName+'</div>'+
     '<div style="font-size:.68rem;color:#9EA8B1">Lv.'+S.p.level+' | 🪙'+S.p.coins+'</div></div></div>';
   pg.appendChild(myCard);
@@ -3948,14 +4123,21 @@ function rAccountSync(){
     var confBtn=document.createElement('button');confBtn.className='BTN B-OR BW';confBtn.style.padding='12px';confBtn.textContent='確認載入';
     confBtn.addEventListener('click',function(){
       // Merge: keep displayName from imported, load all data
-      var pName=data.n;
-      data.lastDay=today(); // reset daily so login bonus triggers
+      var pName=data.name||data.n;
+      data.lastDay=today();
+      data.name=pName;
+      data.displayName=data.displayName||data.n||pName;
       localStorage.setItem('mt_p_'+pName, JSON.stringify(data));
-      // Switch to this account
+      // Add to accounts list
+      var accs=getAccs();
+      if(!accs.find(function(a){return a.name===pName})){
+        accs.push({name:pName,displayName:data.displayName,pinHash:data.pin||''});
+        saveAccs();
+      }
       S.p=data;
       ov.remove();
       saveP();
-      toast('✅ 已載入帳號：'+pName+'！');
+      toast('✅ 已載入帳號：'+data.displayName+'！');
       render();
     });
     var canBtn=document.createElement('button');canBtn.className='BTN B-WH BW';canBtn.style.cssText='padding:10px;margin-top:6px';canBtn.textContent='取消';canBtn.addEventListener('click',function(){ov.remove()});
@@ -3977,10 +4159,10 @@ function rAccountSync(){
       var row=document.createElement('div');row.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #F0F0F0';
       try{
         var pd=JSON.parse(localStorage.getItem('mt_p_'+name));
-        row.innerHTML='<div><div style="font-weight:700;font-size:.82rem">'+pd.av+' '+pd.displayName+'</div><div style="font-size:.65rem;color:#9EA8B1">Lv.'+pd.level+'</div></div>';
+        row.innerHTML='<div><div style="font-weight:700;font-size:.82rem">'+(pd.av||'🧒')+' '+pd.displayName+'</div><div style="font-size:.65rem;color:#9EA8B1">Lv.'+pd.level+'</div></div>';
         var swBtn=document.createElement('button');swBtn.style.cssText='padding:5px 12px;background:'+(name===S.p.displayName?'#E0E0E0':'#4CAF50')+';color:'+(name===S.p.displayName?'#888':'#fff')+';border:none;border-radius:50px;font-size:.72rem;font-weight:700;cursor:pointer;font-family:inherit';
-        swBtn.textContent=name===S.p.displayName?'目前使用':'切換';
-        if(name!==S.p.displayName){swBtn.addEventListener('click',(function(n){return function(){switchAccount(n)}})(name))}
+        swBtn.textContent=name===S.p.name?'目前使用':'切換';
+        if(name!==S.p.name){swBtn.addEventListener('click',(function(n){return function(){switchAccount(n)}})(name))}
         row.appendChild(swBtn);
       }catch(e){row.innerHTML='<div>'+name+'</div>'}
       multiCard.appendChild(row);
@@ -4014,161 +4196,8 @@ function switchAccount(name){
 // ============================================================
 
 // ── 1. FISHING MINI-GAME ──
-function rFishing(){
-  var p=S.p;
-  if(p.mgDone&&p.mgDone.fish===today()){
-    toast('今天已釣魚了！明天再來 🎣');return;
-  }
-  var a=app();a.innerHTML='';
-  var hdr=document.createElement('div');
-  hdr.style.cssText='background:linear-gradient(135deg,#0277BD,#00695C);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0';
-  hdr.innerHTML='<div style="color:#fff;font-weight:700;font-size:.88rem">🎣 釣魚（每日一次）</div><div id="fish-score" style="color:#FFD700;font-weight:900;font-size:.88rem">分數：0</div>';
-  var qb=document.createElement('button');qb.className='BTN B-WH';qb.style.cssText='padding:5px 12px;font-size:.75rem';qb.textContent='放棄';qb.addEventListener('click',function(){clrT();go('mghub')});
-  hdr.appendChild(qb);a.appendChild(hdr);
-  // Game canvas
-  var cv=document.createElement('canvas');cv.width=360;cv.height=420;
-  cv.style.cssText='display:block;width:100%;background:#0277BD;max-height:60vh;';
-  a.appendChild(cv);
-  var ctx=cv.getContext('2d');
-  // Instruction
-  var inst=document.createElement('div');inst.style.cssText='padding:10px;text-align:center;font-size:.78rem;color:#4A5568;flex-shrink:0';inst.textContent='看到魚時點擊畫面釣魚！魚越大分數越高！';a.appendChild(inst);
-  // Game state
-  var gameState={score:0,catches:0,timeLeft:30,fish:[],rod:{x:180,y:30,lineLen:30}};
-  var fishTypes=[
-    {e:'🐟',sz:24,speed:2,pts:5,prob:.5},
-    {e:'🐠',sz:30,speed:2.5,pts:10,prob:.25},
-    {e:'🐡',sz:36,speed:1.5,pts:20,prob:.15},
-    {e:'🦈',sz:50,speed:3,pts:50,prob:.07},
-    {e:'💎',sz:20,speed:4,pts:100,prob:.03},
-  ];
-  // Spawn fish
-  function spawnFish(){
-    var r=Math.random(),cum=0;
-    for(var fi=0;fi<fishTypes.length;fi++){
-      cum+=fishTypes[fi].prob;
-      if(r<cum){
-        var ft=fishTypes[fi];
-        var dir=Math.random()>0.5?1:-1;
-        gameState.fish.push({
-          x:dir>0?-50:cv.width+50,y:80+Math.random()*(cv.height-120),
-          dx:ft.speed*dir,e:ft.e,sz:ft.sz,pts:ft.pts,id:Date.now()+Math.random()
-        });
-        break;
-      }
-    }
-  }
-  // Draw
-  var raf;
-  function draw(){
-    ctx.clearRect(0,0,cv.width,cv.height);
-    // Water background
-    var grad=ctx.createLinearGradient(0,0,0,cv.height);
-    grad.addColorStop(0,'#0288D1');grad.addColorStop(1,'#004D70');
-    ctx.fillStyle=grad;ctx.fillRect(0,0,cv.width,cv.height);
-    // Waves
-    ctx.strokeStyle='rgba(255,255,255,0.15)';ctx.lineWidth=2;
-    for(var wi=0;wi<5;wi++){
-      ctx.beginPath();var wy=40+wi*30;
-      for(var wx=0;wx<cv.width;wx+=4)ctx.lineTo(wx,wy+Math.sin((wx+Date.now()/300+wi*50)*0.05)*6);
-      ctx.stroke();
-    }
-    // Rod
-    ctx.strokeStyle='#A0522D';ctx.lineWidth=3;
-    ctx.beginPath();ctx.moveTo(gameState.rod.x,0);ctx.lineTo(gameState.rod.x,20);ctx.stroke();
-    // Line
-    if(gameState.rod.lineLen>0){
-      ctx.strokeStyle='rgba(255,255,255,0.6)';ctx.lineWidth=1;
-      ctx.beginPath();ctx.moveTo(gameState.rod.x,20);ctx.lineTo(gameState.rod.x,gameState.rod.lineLen);ctx.stroke();
-      ctx.beginPath();ctx.arc(gameState.rod.x,gameState.rod.lineLen,5,0,Math.PI*2);
-      ctx.fillStyle='#FF6B35';ctx.fill();
-    }
-    // Fish
-    ctx.font='bold 20px serif';ctx.textAlign='center';ctx.textBaseline='middle';
-    gameState.fish.forEach(function(f){
-      ctx.save();
-      if(f.dx<0){ctx.scale(-1,1);ctx.fillText(f.e,-f.x,f.y);}
-      else ctx.fillText(f.e,f.x,f.y);
-      ctx.restore();
-    });
-    // Timer bar
-    var tp=gameState.timeLeft/30;
-    ctx.fillStyle='rgba(0,0,0,.3)';ctx.fillRect(0,cv.height-8,cv.width,8);
-    ctx.fillStyle=tp>0.5?'#4CAF50':tp>0.25?'#FFD700':'#EF4444';
-    ctx.fillRect(0,cv.height-8,cv.width*tp,8);
-  }
-  // Game loop
-  var lastSpawn=0;
-  function loop(){
-    var now=Date.now();
-    if(now-lastSpawn>1200){spawnFish();lastSpawn=now;}
-    // Move fish
-    gameState.fish=gameState.fish.filter(function(f){
-      f.x+=f.dx;
-      return f.x>-100&&f.x<cv.width+100;
-    });
-    // Line stays where cast, retract after catch
-    draw();
-    raf=requestAnimationFrame(loop);
-  }
-  // Timer
-  S.tid=setInterval(function(){
-    gameState.timeLeft--;
-    var el=document.getElementById('fish-score');
-    if(el)el.textContent='分數：'+gameState.score+' | ⏰'+gameState.timeLeft;
-    if(gameState.timeLeft<=0){
-      clrT();cancelAnimationFrame(raf);
-      endFishing(gameState.score);
-    }
-  },1000);
-  // Click to catch
-  // Move rod to click/tap position
-  function moveRod(e){
-    var rect=cv.getBoundingClientRect();
-    var cx3=(e.clientX-rect.left)*(cv.width/rect.width);
-    gameState.rod.x=Math.max(20,Math.min(cv.width-20,cx3));
-  }
-  cv.addEventListener('mousemove',function(e){if(!spinning)moveRod(e)});
-  cv.addEventListener('touchmove',function(e){e.preventDefault();if(!spinning&&e.touches[0])moveRod(e.touches[0])},{passive:false});
-  var spinning=false;
-  cv.addEventListener('click',function(e){
-    moveRod(e);
-    // Cast line to full length instantly
-    gameState.rod.lineLen=cv.height-30;
-    // Check if line tip is near any fish
-    var lx=gameState.rod.x,ly=gameState.rod.lineLen;
-    var caught=false;
-    gameState.fish=gameState.fish.filter(function(f){
-      if(!caught&&Math.hypot(lx-f.x,ly-f.y)<f.sz*1.2){
-        caught=true;gameState.score+=f.pts;gameState.catches++;
-        var el=document.getElementById('fish-score');
-        if(el)el.textContent='分數：'+gameState.score+' | ⏰'+gameState.timeLeft;
-        // Splash effect
-        ctx.fillStyle='rgba(255,255,255,0.6)';
-        ctx.beginPath();ctx.arc(f.x,f.y,30,0,Math.PI*2);ctx.fill();
-        // Show points popup
-        var popup=document.createElement('div');
-        popup.style.cssText='position:fixed;pointer-events:none;animation:fcu 1s ease forwards;font-size:1.2rem;font-weight:900;color:#FFD700;z-index:9999;left:'+((e.clientX))+'px;top:'+((e.clientY-20))+'px';
-        popup.textContent='+'+f.pts+'pts '+f.e;
-        document.body.appendChild(popup);setTimeout(function(){popup.remove()},1100);
-        gameState.rod.lineLen=30; // retract line
-        return false;
-      }
-      return true;
-    });
-  });
-  loop();
-}
-function endFishing(score){
-  var reward=Math.floor(score/5)+10;
-  var p=S.p;p.coins+=reward;p.totalCE=(p.totalCE||0)+reward;
-  if(!p.mgDone)p.mgDone={};p.mgDone.fish=today();saveP();
-  var a=app();a.innerHTML='';
-  var top=document.createElement('div');top.style.cssText='background:linear-gradient(135deg,#0277BD,#00695C);padding:28px 14px;text-align:center;flex:1';
-  top.innerHTML='<div style="font-size:3rem">🎣</div><div style="font-size:2rem;font-weight:900;color:#FFD700;margin-top:10px">分數：'+score+'</div><div style="font-size:.88rem;color:#fff;margin-top:8px">獲得 🪙'+reward+'</div>';
-  a.appendChild(top);
-  var pg=document.createElement('div');pg.className='PG';
-  var hb=document.createElement('button');hb.className='BTN B-GR BW';hb.textContent='回首頁';hb.addEventListener('click',function(){go('home')});pg.appendChild(hb);a.appendChild(pg);
-}
+
+
 
 // ── 2. WEEKLY CHALLENGES ──
 function getWeekKey(){var d=new Date();return d.getFullYear()+'W'+Math.floor((d.getDate()-1)/7)+'M'+d.getMonth();}
@@ -4178,8 +4207,7 @@ function getWeekChallenges(){
     var templates=[
       {desc:'本週答對 50 題',type:'quiz_correct',target:50,reward:200},
       {desc:'本週完成 10 個訂單',type:'orders',target:10,reward:300},
-      {desc:'本週釣魚 5 次',type:'fish',target:5,reward:150},
-      {desc:'本週升一級',type:'level',target:S.p.level+1,reward:250},
+            {desc:'本週升一級',type:'level',target:S.p.level+1,reward:250},
       {desc:'本週賺 500 金幣',type:'earn',target:500,reward:180},
     ];
     // Pick 3 random challenges
@@ -4398,10 +4426,10 @@ function showLuckySpin(){
 // ── 2. RANDOM TOWN EVENTS ──
 var TOWN_EVENTS=[
   {e:'☀️',msg:'陽光燦爛！農作物生長加速！',fn:function(){toast('☀️ 農作物生長加速！');}},
-  {e:'🧙',msg:'旅行魔法師路過，送你金幣！',fn:function(){var g=20+Math.floor(Math.random()*30);S.S.p.coins+=g;S.S.p.totalCE=(S.S.p.totalCE||0)+g;toast('🧙 旅行魔法師送你 🪙'+g+'！');saveP();}},
+  {e:'🧙',msg:'旅行魔法師路過，送你金幣！',fn:function(){var g=20+Math.floor(Math.random()*30);S.p.coins+=g;S.p.totalCE=(S.p.totalCE||0)+g;toast('🧙 旅行魔法師送你 🪙'+g+'！');saveP();}},
   {e:'🎪',msg:'節日慶典！所有訂單獎勵×2！',fn:function(){toast('🎪 節日慶典開始！完成訂單獎勵加倍！');S._festivalOn=true;setTimeout(function(){S._festivalOn=false;},120000);}},
   {e:'⚡',msg:'暴風雨來了！小心農作物！',fn:function(){toast('⚡ 暴風雨！小心農作物～');}},
-  {e:'🐝',msg:'蜜蜂造訪！花圃產了蜂蜜！',fn:function(){S.S.p.inv.honey=(S.S.p.inv.honey||0)+3;saveP();toast('🐝 蜜蜂帶來 3 蜂蜜！');}},
+  {e:'🐝',msg:'蜜蜂造訪！花圃產了蜂蜜！',fn:function(){S.p.inv.honey=(S.p.inv.honey||0)+3;saveP();toast('🐝 蜜蜂帶來 3 蜂蜜！');}},
   {e:'🌈',msg:'彩虹出現！幸運日！所有答題金幣×1.5',fn:function(){toast('🌈 幸運彩虹！接下來15分鐘答題金幣×1.5！');S._rainbowEnd=Date.now()+900000;}},
 ];
 var lastEventTime=0;
@@ -4542,12 +4570,22 @@ function showAvatarPicker(){
   document.body.appendChild(ov);
 }
 
+// Catch ALL errors
+window.onerror=function(msg,src,line,col,err){
+  var d=document.getElementById('app')||document.body;
+  d.style.cssText='padding:20px;background:#C62828;color:#fff;font-size:.75rem;white-space:pre-wrap;position:fixed;inset:0;overflow:auto;z-index:9999';
+  d.innerHTML='<b>❌ Error (截圖)</b><br>'+msg+'<br>Line:'+line+'<br>'+(err?err.stack:'');
+  return true;
+};
 // Auto-init Supabase
 initSupabase();
-render();
+try{render();}catch(e){
+  var errDiv=document.getElementById('app')||document.body;
+  errDiv.style.cssText='padding:20px;background:#C62828;color:#fff;font-size:.82rem;white-space:pre-wrap;z-index:9999;position:fixed;inset:0;overflow:auto';
+  errDiv.innerHTML='<b>❌ JS Error (截圖給開發者)</b><br><br>'+e.message+'<br><br>'+e.stack;
+}
 // Pre-load OCR in background after 3 seconds
 setTimeout(function(){if(typeof Tesseract!=='undefined')initOCR()},3000);
-if('serviceWorker' in navigator)window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})});
-}</script>
+if('serviceWorker' in navigator)window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})});</script>
 </body>
 </html>
