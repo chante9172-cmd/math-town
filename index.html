@@ -99,7 +99,7 @@ input[type=number]::-webkit-inner-spin-button{display:none}
 .ICIP.SEL{border-color:#4CAF50;background:rgba(76,175,80,.1)}
 
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
 </head>
 <body>
 <div id="app"></div>
@@ -119,19 +119,55 @@ var SUPA_KEY = 'sb_publishable_FwGRDxGgM9vmXOAxwUjdAA_lT683X_o';
 // SUPABASE SYNC - fill in your project URL and anon key
 // ============================================================
 // SUPA_URL and SUPA_KEY defined in config script
-var supabase = null;
+// Supabase REST API (no external library needed)
+var supabase = null; // will be set to true when config is valid
 
 function initSupabase(){
   var hasConfig=SUPA_URL&&SUPA_URL.includes('.supabase.co')&&SUPA_KEY&&SUPA_KEY.length>10;
   if(!hasConfig)return false;
-  var sbLib=window.supabase||window.Supabase;
-  if(!sbLib||!sbLib.createClient){console.error('Supabase lib not loaded');return false;}
-  try{
-    supabase=sbLib.createClient(SUPA_URL,SUPA_KEY);
-    hookSupabaseSave();
-    console.log('✅ Supabase connected!');
-    return true;
-  }catch(e){console.error('Supabase init failed:',e);return false}
+  supabase={
+    _url: SUPA_URL+'/rest/v1',
+    _key: SUPA_KEY,
+    from: function(table){
+      var base=this._url+'/'+table;
+      var key=this._key;
+      return {
+        upsert: async function(data, opts){
+          try{
+            var r=await fetch(base+'?on_conflict='+(opts&&opts.onConflict||'username'), {
+              method:'POST',
+              headers:{'Content-Type':'application/json','apikey':key,'Authorization':'Bearer '+key,'Prefer':'resolution=merge-duplicates'},
+              body:JSON.stringify(data)
+            });
+            if(!r.ok){var e=await r.text();return{error:{message:e}};}
+            return{data:true,error:null};
+          }catch(e){return{error:{message:e.message}};}
+        },
+        select: function(cols){
+          var q=base+'?select='+(cols||'*');
+          return {
+            eq: function(col,val){
+              var qf=q+'&'+col+'=eq.'+encodeURIComponent(val);
+              return {
+                single: async function(){
+                  try{
+                    var r=await fetch(qf,{headers:{'apikey':key,'Authorization':'Bearer '+key,'Accept':'application/vnd.pgrst.object+json'}});
+                    if(r.status===406||r.status===404)return{data:null,error:{code:'PGRST116'}};
+                    if(!r.ok)return{data:null,error:{message:'HTTP '+r.status}};
+                    var d=await r.json();
+                    return{data:d,error:null};
+                  }catch(e){return{data:null,error:{message:e.message}};}
+                }
+              };
+            }
+          };
+        }
+      };
+    }
+  };
+  hookSupabaseSave();
+  console.log('✅ Supabase REST connected!');
+  return true;
 }
 
 async function supabaseSave(){
