@@ -3140,26 +3140,45 @@ function showBuildingPopup(idx,bd){
           '<div style="font-size:.55rem;font-weight:700;color:#1B5E20">'+g.n+'</div>'+
           '<div style="font-size:.6rem;color:#F59E0B;font-weight:700">×'+(p.inv[id]||0)+'</div>'+
           '<div style="font-size:.55rem;color:#388E3C">🪙'+g.sell+'/個</div>';
-        // Single click: sell 1
-        itm2.addEventListener('click',function(){
-          if(!(p.inv[id]>=1))return;
-          p.inv[id]--;if(p.inv[id]<=0)delete p.inv[id];
-          p.coins+=g.sell;p.totalCE=(p.totalCE||0)+g.sell;
-          saveP();toast('賣出 '+g.e+' +🪙'+g.sell);
-          // Refresh count
-          itm2.querySelector('div:nth-child(3)').textContent='×'+(p.inv[id]||0);
-          if(!(p.inv[id]>=1))itm2.style.opacity='.3';
-        });
-        // Long press: sell all
-        var lt;
-        itm2.addEventListener('touchstart',function(){lt=setTimeout(function(){
-          var cnt=p.inv[id]||0;if(cnt<1)return;
+        itm2.addEventListener('click',(function(gid,g,itm2){return function(){
+          if(!(p.inv[gid]>=1))return;
+          var cnt=p.inv[gid]||0;
+          // Confirm popup
+          var cov=document.createElement('div');cov.className='POPUP';
+          var cbox=document.createElement('div');cbox.className='PBX';cbox.style.textAlign='center';
+          cbox.innerHTML='<div style="font-size:2.5rem">'+g.e+'</div>'+
+            '<div style="font-weight:700;font-size:.95rem;margin:8px 0">出售 '+g.n+'</div>'+
+            '<div style="font-size:.75rem;color:#9EA8B1;margin-bottom:14px">庫存：'+cnt+'個　每個 🪙'+g.sell+'</div>';
+          // Sell 1
+          var s1=document.createElement('button');s1.className='BTN B-GR BW';s1.style.padding='11px';
+          s1.textContent='賣 1 個（+🪙'+g.sell+'）';
+          s1.addEventListener('click',function(){
+            if(!(p.inv[gid]>=1))return;
+            p.inv[gid]--;if(p.inv[gid]<=0)delete p.inv[gid];
+            p.coins+=g.sell;p.totalCE=(p.totalCE||0)+g.sell;
+            saveP();toast('賣出 '+g.e+' +🪙'+g.sell);
+            cov.remove();
+            itm2.querySelector('div:nth-child(3)').textContent='×'+(p.inv[gid]||0);
+            if(!(p.inv[gid]>=1))itm2.style.opacity='.4';
+          });
+          // Sell all
+          var sa=document.createElement('button');sa.className='BTN B-OR BW';sa.style.padding='11px';
           var total=cnt*g.sell;
-          p.coins+=total;p.totalCE=(p.totalCE||0)+total;
-          delete p.inv[id];saveP();toast('全賣 '+g.e+'×'+cnt+' +🪙'+total);
-          itm2.style.opacity='.3';itm2.querySelector('div:nth-child(3)').textContent='×0';
-        },600)},{passive:true});
-        itm2.addEventListener('touchend',function(){clearTimeout(lt)},{passive:true});
+          sa.textContent='全賣 '+cnt+'個（+🪙'+total+'）';
+          sa.addEventListener('click',function(){
+            var c2=p.inv[gid]||0;var t2=c2*g.sell;
+            p.coins+=t2;p.totalCE=(p.totalCE||0)+t2;
+            delete p.inv[gid];saveP();toast('全賣 '+g.e+'×'+c2+' +🪙'+t2);
+            cov.remove();
+            itm2.querySelector('div:nth-child(3)').textContent='×0';
+            itm2.style.opacity='.4';
+          });
+          var cc=document.createElement('button');cc.className='BTN B-WH BW';cc.style.cssText='padding:9px;font-size:.82rem';cc.textContent='取消';
+          cc.addEventListener('click',function(){cov.remove()});
+          cbox.appendChild(s1);cbox.appendChild(sa);cbox.appendChild(cc);
+          cov.appendChild(cbox);cov.addEventListener('click',function(e){if(e.target===cov)cov.remove()});
+          document.body.appendChild(cov);
+        }})(id,g,itm2));
         ig2.appendChild(itm2);
       });
       box.appendChild(ig2);
