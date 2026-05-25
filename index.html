@@ -2914,10 +2914,9 @@ function cClick(idx,bId,bd){
   var p=S.p;
   // Placing mode
   if(S.placing){
-    if(Date.now()-(S._lastPlace||0)<600){return;} // debounce 600ms
     if(!bId){placeB(idx)}
-    else toast('此格已有建築，請點空格');
-    return
+    else toast('此格已有建築！');
+    return;
   }
   if(!bId){return}
   // Multi-tile PART cell - redirect to anchor
@@ -3017,6 +3016,9 @@ function showFacPopup(idx,bId){
 
 function placeB(idx){
   var p=S.p,b=IT[S.placing];
+  if(!S.placing)return;
+  // Must have at least 1 in inventory
+  if(!(p.bldgInv[S.placing]>=1)){toast('庫存不足');S.placing=null;rTown();return;}
   // WH can only be placed once
   if(S.placing==='WH'&&p.town.some(function(t){return t==='WH'||(t&&t.indexOf('WH_PART_')===0)})){
     toast('倉庫已存在！每個小鎮只能有一個');S.placing=null;rTown();return;
@@ -3028,15 +3030,20 @@ function placeB(idx){
   } else {
     p.town[idx]=S.placing;
   }
-  p.bldgInv[S.placing]--;if(p.bldgInv[S.placing]<=0)delete p.bldgInv[S.placing];
+  p.bldgInv[S.placing]--;
+  if(p.bldgInv[S.placing]<=0)delete p.bldgInv[S.placing];
   if(b&&(b.coin||b.exp))p.collect[idx]={lastD:''};
   if(b&&b.cat==='farm')p.farms[idx]={crop:b.crop,done:false,endTime:0};
   if(b&&b.cat==='animal')p.animalSlots[idx]={animal:b.animal,fed:false,ready:false};
   if(b&&b.cat==='factory')p.factories[idx]={queue:[]};
-  S._lastPlace=Date.now();
-  if(!Object.keys(p.bldgInv).some(function(k){return p.bldgInv[k]>0}))S.placing=null;
+  // Only keep placing mode if still have inventory
+  if(p.bldgInv[S.placing]>=1){
+    // still have more, keep placing
+  } else {
+    S.placing=null; // always stop after placing
+  }
   checkAchievements('build',1);
-  saveP();rTown()
+  saveP();rTown();
 }
 function fClick(idx,bd){
   var f=S.p.farms[idx]||(S.p.farms[idx]={crop:null,done:false,endTime:0});
@@ -3105,6 +3112,7 @@ function showBuildingPopup(idx,bd){
   if(bd.cat==='factory'){showFacPopup(idx,bd.id);return}
   if(bd.warehouse){
     // Show warehouse info
+    var p=S.p;
     var ov=document.createElement('div');ov.className='POPUP';
     var box=document.createElement('div');box.className='PBX';
     box.innerHTML='<div style="text-align:center;font-size:2.5rem">📦</div><div style="text-align:center;font-weight:700;font-size:1rem;margin:8px 0">倉庫</div>';
@@ -3116,9 +3124,47 @@ function showBuildingPopup(idx,bd){
     box.appendChild(info);
     // Move button for WH
     var mvWH=document.createElement('button');mvWH.className='BTN B-SK BW';mvWH.style.padding='10px';mvWH.textContent='🔀 移動倉庫';
-    mvWH.addEventListener('click',function(){ov.remove();removeMulti(idx,'WH');S.p.bldgInv['WH']=(S.p.bldgInv['WH']||0)+1;S.placing='WH';saveP();rTown();toast('選擇要放置的位置');});
+    mvWH.addEventListener('click',function(){ov.remove();removeMulti(idx,'WH');S.p.bldgInv['WH']=1;S.placing='WH';saveP();rTown();toast('點空格放置倉庫');});
     box.appendChild(mvWH);
-    var cl=document.createElement('button');cl.style.cssText='display:block;width:100%;padding:11px;background:#F7F9FA;border:1.5px solid #E0E7EF;color:#1B2631;border-radius:12px;font-size:.88rem;cursor:pointer;font-family:inherit;margin-top:6px';cl.textContent='關閉';cl.addEventListener('click',function(){ov.remove()});
+    // Sell items section
+    var goods2=Object.keys(p.inv).filter(function(id){return(p.inv[id]||0)>0&&GD[id]});
+    if(goods2.length>0){
+      var sellHdr=document.createElement('div');sellHdr.style.cssText='font-size:.74rem;font-weight:700;color:#2E7D32;margin:10px 0 6px';sellHdr.textContent='💰 出售貨物（點一下賣一個，長按全賣）';
+      box.appendChild(sellHdr);
+      var ig2=document.createElement('div');ig2.style.cssText='display:grid;grid-template-columns:repeat(4,1fr);gap:6px;max-height:180px;overflow-y:auto';
+      goods2.forEach(function(id){
+        var g=GD[id];if(!g)return;
+        var itm2=document.createElement('div');
+        itm2.style.cssText='text-align:center;padding:7px 4px;border-radius:10px;background:#F0FFF4;border:1px solid #A5D6A7;cursor:pointer;position:relative';
+        itm2.innerHTML='<div style="font-size:1.3rem">'+g.e+'</div>'+
+          '<div style="font-size:.55rem;font-weight:700;color:#1B5E20">'+g.n+'</div>'+
+          '<div style="font-size:.6rem;color:#F59E0B;font-weight:700">×'+(p.inv[id]||0)+'</div>'+
+          '<div style="font-size:.55rem;color:#388E3C">🪙'+g.sell+'/個</div>';
+        // Single click: sell 1
+        itm2.addEventListener('click',function(){
+          if(!(p.inv[id]>=1))return;
+          p.inv[id]--;if(p.inv[id]<=0)delete p.inv[id];
+          p.coins+=g.sell;p.totalCE=(p.totalCE||0)+g.sell;
+          saveP();toast('賣出 '+g.e+' +🪙'+g.sell);
+          // Refresh count
+          itm2.querySelector('div:nth-child(3)').textContent='×'+(p.inv[id]||0);
+          if(!(p.inv[id]>=1))itm2.style.opacity='.3';
+        });
+        // Long press: sell all
+        var lt;
+        itm2.addEventListener('touchstart',function(){lt=setTimeout(function(){
+          var cnt=p.inv[id]||0;if(cnt<1)return;
+          var total=cnt*g.sell;
+          p.coins+=total;p.totalCE=(p.totalCE||0)+total;
+          delete p.inv[id];saveP();toast('全賣 '+g.e+'×'+cnt+' +🪙'+total);
+          itm2.style.opacity='.3';itm2.querySelector('div:nth-child(3)').textContent='×0';
+        },600)},{passive:true});
+        itm2.addEventListener('touchend',function(){clearTimeout(lt)},{passive:true});
+        ig2.appendChild(itm2);
+      });
+      box.appendChild(ig2);
+    }
+    var cl=document.createElement('button');cl.style.cssText='display:block;width:100%;padding:11px;background:#F7F9FA;border:1.5px solid #E0E7EF;color:#1B2631;border-radius:12px;font-size:.88rem;cursor:pointer;font-family:inherit;margin-top:10px';cl.textContent='關閉';cl.addEventListener('click',function(){ov.remove()});
     box.appendChild(cl);ov.appendChild(box);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove()});document.body.appendChild(ov);
     return;
   }
@@ -3145,10 +3191,12 @@ function showRem(idx,bd){
   var mvBtn=document.createElement('button');mvBtn.className='BTN B-SK BW';mvBtn.style.padding='11px';mvBtn.textContent='🔀 移動';
   mvBtn.addEventListener('click',function(){
     ov.remove();
-    removeMulti(idx,bd.id||S.p.town[idx]);
-    S.p.bldgInv[bd.id||S.p.town[idx]]=(S.p.bldgInv[bd.id||S.p.town[idx]]||0)+1;
-    S.placing=bd.id||S.p.town[idx];
-    saveP();rTown();toast('選擇要放置的位置');
+    var bid=bd.id||S.p.town[idx];
+    removeMulti(idx,bid);
+    // Set exactly 1 in inventory for placement
+    S.p.bldgInv[bid]=1;
+    S.placing=bid;
+    saveP();rTown();toast('點空格放置');
   });
   box.appendChild(mvBtn);
   // Remove (non-WH only)
@@ -3262,7 +3310,7 @@ function rShop(){
     var si=mkDiv('SI'+(cnt>0?' owned':'')+(!canBuy?' locked':''));
     if(cnt>0){var cn=mkDiv('SICNT');cn.textContent='×'+cnt;si.appendChild(cn)}
     var siContent=document.createElement('div');siContent.innerHTML='<div style="font-size:1.9rem;margin-bottom:3px">'+b.e+'</div><div style="font-size:.62rem;font-weight:700">'+b.n+'</div>'+(prod?'<div class="PTAG">'+prod+'</div>':'')+(b.lv&&!unlocked?'<div style="font-size:.56rem;color:#EF4444;margin-top:2px">Lv.'+b.lv+'解鎖</div>':'')+'<div style="background:#FFFDE7;border-radius:5px;padding:2px 5px;font-size:.6rem;font-weight:700;color:#7B5E00;margin-top:3px">🪙'+b.c+'</div>';while(siContent.firstChild)si.appendChild(siContent.firstChild);
-    if(canBuy)(function(bid,bc){si.addEventListener('click',function(){if(S.p.coins<bc)return;S.p.coins-=bc;S.p.bldgInv[bid]=(S.p.bldgInv[bid]||0)+1;saveP();toast('已購買！進小鎮放置');rShop()})})(b.id,b.c);
+    if(canBuy)(function(bid,bc){si.addEventListener('click',function(){if(S.p.coins<bc)return;if(bid==='WH'&&(S.p.bldgInv['WH']||0)+(S.p.town.some(function(t){return t==='WH'||(t&&t.indexOf('WH_PART_')===0)})?1:0)>=1){toast('倉庫只能有一個！');return;}S.p.coins-=bc;S.p.bldgInv[bid]=(S.p.bldgInv[bid]||0)+1;saveP();toast('已購買！進小鎮放置');rShop()})})(b.id,b.c);
     sg.appendChild(si);
   });
   pg.appendChild(sg);wrap.appendChild(pg);a.appendChild(wrap);a.appendChild(bnH('shop'));
@@ -3756,12 +3804,7 @@ function rMgh(){
   if(!mg1d)c1.addEventListener('click',function(){go('mg1')});pg.appendChild(c1);
   var c2=mkDiv('CARD'+(mg2d?' opacity:.7':''));c2.style.cursor=mg2d?'not-allowed':'pointer';c2.innerHTML='<div style="display:flex;align-items:center;gap:12px"><div style="width:50px;height:50px;border-radius:14px;background:#FFF3E0;display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0">⚡</div><div style="flex:1"><div style="font-weight:700;font-size:.9rem">速算泡泡</div><div style="font-size:.68rem;color:#4CAF50">最高 🪙 '+(30+p.level*2)+'</div></div><div style="font-size:.75rem;font-weight:700;color:'+(mg2d?'#9EA8B1':'#E65100')+'">'+(mg2d?'✅':'▶ 開始')+'</div></div>';
   if(!mg2d)c2.addEventListener('click',function(){go('mg2')});pg.appendChild(c2);
-  // Fishing
-  var cf=mkDiv('CARD'+(p.mgDone&&p.mgDone.fish===today()?' opacity:.7':''));cf.style.cursor=(p.mgDone&&p.mgDone.fish===today())?'not-allowed':'pointer';
-  cf.innerHTML='<div style="display:flex;align-items:center;gap:12px"><div style="width:50px;height:50px;border-radius:14px;background:#E0F2F1;display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0">🎣</div><div style="flex:1"><div style="font-weight:700;font-size:.9rem">釣魚時間</div><div style="font-size:.68rem;color:#4CAF50">30秒內盡量釣！</div></div><div style="font-size:.75rem;font-weight:700;color:'+(p.mgDone&&p.mgDone.fish===today()?'#9EA8B1':'#0277BD')+'">'+(p.mgDone&&p.mgDone.fish===today()?'✅':'▶ 開始')+'</div></div>';
-  if(!(p.mgDone&&p.mgDone.fish===today()))cf.addEventListener('click',function(){rFishing()});
-  pg.appendChild(cf);
-  // Weekly challenges
+  // Fishing  // Weekly challenges
   var cwk=mkDiv('CARD');cwk.style.cursor='pointer';
   var wkchallenges=getWeekChallenges();var wkDone=wkchallenges.filter(function(c){return c.done}).length;
   cwk.innerHTML='<div style="display:flex;align-items:center;gap:12px"><div style="width:50px;height:50px;border-radius:14px;background:#FFF8E1;display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0">📅</div><div style="flex:1"><div style="font-weight:700;font-size:.9rem">本週挑戰</div><div style="font-size:.68rem;color:#F59E0B">完成 '+wkDone+'/3 項挑戰</div></div><div style="font-size:.75rem;font-weight:700;color:#F59E0B">'+( wkDone===3?'✅ 全完成':'▶ 查看')+'</div></div>';
@@ -4120,17 +4163,7 @@ function switchAccount(name){
 
 // ── 1. FISHING MINI-GAME ──
 
-function endFishing(score){
-  var reward=Math.floor(score/5)+10;
-  var p=S.p;p.coins+=reward;p.totalCE=(p.totalCE||0)+reward;
-  if(!p.mgDone)p.mgDone={};p.mgDone.fish=today();saveP();
-  var a=app();a.innerHTML='';
-  var top=document.createElement('div');top.style.cssText='background:linear-gradient(135deg,#0277BD,#00695C);padding:28px 14px;text-align:center;flex:1';
-  top.innerHTML='<div style="font-size:3rem">🎣</div><div style="font-size:2rem;font-weight:900;color:#FFD700;margin-top:10px">分數：'+score+'</div><div style="font-size:.88rem;color:#fff;margin-top:8px">獲得 🪙'+reward+'</div>';
-  a.appendChild(top);
-  var pg=document.createElement('div');pg.className='PG';
-  var hb=document.createElement('button');hb.className='BTN B-GR BW';hb.textContent='回首頁';hb.addEventListener('click',function(){go('home')});pg.appendChild(hb);a.appendChild(pg);
-}
+
 
 // ── 2. WEEKLY CHALLENGES ──
 function getWeekKey(){var d=new Date();return d.getFullYear()+'W'+Math.floor((d.getDate()-1)/7)+'M'+d.getMonth();}
