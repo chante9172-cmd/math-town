@@ -99,7 +99,7 @@ input[type=number]::-webkit-inner-spin-button{display:none}
 .ICIP.SEL{border-color:#4CAF50;background:rgba(76,175,80,.1)}
 
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
 </head>
 <body>
 <div id="app"></div>
@@ -122,7 +122,7 @@ var SUPA_KEY = 'sb_publishable_FwGRDxGgM9vmXOAxwUjdAA_lT683X_o';
 var supabase = null;
 
 function initSupabase(){
-  var hasConfig=SUPA_URL&&!SUPA_URL.includes('YOUR_PROJECT_ID')&&SUPA_KEY&&!SUPA_KEY.includes('YOUR_ANON');
+  var hasConfig=SUPA_URL&&SUPA_URL.includes('.supabase.co')&&SUPA_KEY&&SUPA_KEY.length>10;
   if(!hasConfig||typeof window.supabase==='undefined')return false;
   try{
     supabase=window.supabase.createClient(SUPA_URL,SUPA_KEY);
@@ -4074,7 +4074,7 @@ function rAccountSync(){
   // ─ Import section ─
   // Supabase info card
   // Supabase config card
-  var configured=SUPA_URL&&SUPA_KEY;
+  var configured=!!supabase;
   var sbCard=mkDiv('CARD');sbCard.style.cssText='background:#E8EAF6;border-color:#9FA8DA';
   var sbHtml='<div style="font-size:.8rem;font-weight:700;color:#283593;margin-bottom:6px">☁️ Supabase 即時同步</div>';
   if(configured){
