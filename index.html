@@ -230,6 +230,9 @@ MK:{id:'MK',n:'市集',e:'🏪',bg:'#D4924A',bd:'#8B5A1A',c:300,cat:'bldg',lv:4,
 SC:{id:'SC',n:'學校',e:'🏫',bg:'#C68B52',bd:'#7A4A1A',c:350,cat:'bldg',lv:5,exp:25},
 LB:{id:'LB',n:'圖書館',e:'📚',bg:'#BC8045',bd:'#6E4010',c:450,cat:'bldg',lv:7,exp:40},
 HT:{id:'HT',n:'旅館',e:'🏨',bg:'#D4924A',bd:'#8B5A1A',c:600,cat:'bldg',lv:8,coin:30},
+JUICE:{id:'JUICE',n:'果汁廠',e:'🧃',bg:'#F9A825',bd:'#F57F17',c:20,cat:'factory',buy:350,lv:4,multi:2},
+CHOCO:{id:'CHOCO',n:'巧克力廠',e:'🍫',bg:'#5D4037',bd:'#3E2723',c:20,cat:'factory',buy:500,lv:6,multi:2},
+CANDLE:{id:'CANDLE',n:'蠟燭工坊',e:'🕯',bg:'#FFF8E1',bd:'#F9A825',c:20,cat:'factory',buy:400,lv:5,multi:2},
 CA:{id:'CA',n:'城堡',e:'🏰',bg:'#B8784A',bd:'#6A3810',c:1500,cat:'bldg',lv:12,coin:60},
 ZT:{id:'ZT',n:'魔法塔',e:'🔮',bg:'#9C6A8A',bd:'#5A2A5A',c:600,cat:'bldg',lv:8,boost:0.5},
 WH:{id:'WH',n:'倉庫',e:'🏚️',bg:'#FFD54F',bd:'#5D4037',c:0,cat:'bldg',warehouse:true,noShop:true},
@@ -281,30 +284,46 @@ dyed_fabric:{n:'染色布料',e:'🎨',sell:25}
 };
 var RC={
 MILL:[
-  {out:'feed',    amt:1,inp:[{g:'wheat_g',a:2}],time:1200, n:'雞飼料（小麥）', lv:1},
+  {out:'feed',    amt:1,inp:[{g:'wheat_g',a:2}],time:1200, n:'雞飼料（小麥）', lv:1,needs:[{id:'wheat_g',amt:2}]},
   {out:'feed',    amt:2,inp:[{g:'corn_g', a:2}],time:1500, n:'雞飼料（玉米）', lv:1},
   {out:'cow_feed',amt:1,inp:[{g:'corn_g', a:3}],time:2400, n:'牛飼料', lv:3},
-  {out:'flour',   amt:1,inp:[{g:'wheat_g',a:3}],time:1800, n:'麵粉', lv:2},
-  {out:'sugar',   amt:2,inp:[{g:'sugarcane',a:3}],time:1800,n:'砂糖', lv:7}
+  {out:'flour',   amt:1,inp:[{g:'wheat_g',a:3}],time:1800, n:'麵粉', lv:2,needs:[{id:'wheat_g',amt:3}]},
+  {out:'sugar',   amt:2,inp:[{g:'sugarcane',a:3}],time:1800,n:'砂糖', lv:7,needs:[{id:'sugarcane',amt:3}]}
 ],
 BAKE:[
-  {out:'bread',   amt:1,inp:[{g:'flour',a:1}],         time:1800, n:'麵包', lv:1},
-  {out:'sandwich',amt:1,inp:[{g:'bread',a:1},{g:'tomato',a:1}],time:2700,n:'三明治',lv:2},
-  {out:'cake',    amt:1,inp:[{g:'flour',a:2},{g:'egg',a:1},{g:'sugar',a:1}],time:7200,n:'蛋糕',lv:3},
-  {out:'cookie',  amt:3,inp:[{g:'flour',a:1},{g:'sugar',a:1}],time:3600,n:'餅乾',lv:4},
-  {out:'pie',     amt:1,inp:[{g:'flour',a:2},{g:'pumpkin',a:1}],time:9000,n:'南瓜派',lv:5}
+  {out:'bread',   amt:1,inp:[{g:'flour',a:1}],         time:1800, n:'麵包', lv:1,needs:[{id:'flour',amt:1}]},
+  {out:'sandwich',amt:1,inp:[{g:'bread',a:1},{g:'tomato',a:1}],time:2700,n:'三明治',lv:2,needs:[{id:'bread',amt:1},{id:'tomato',amt:1}]},
+  {out:'cake',    amt:1,inp:[{g:'flour',a:2},{g:'egg',a:1},{g:'sugar',a:1}],time:7200,n:'蛋糕',lv:3,needs:[{id:'flour',amt:2},{id:'egg',amt:1},{id:'sugar',amt:1}]},
+  {out:'cookie',  amt:3,inp:[{g:'flour',a:1},{g:'sugar',a:1}],time:3600,n:'餅乾',lv:4,needs:[{id:'flour',amt:1},{id:'sugar',amt:1}]},
+  {out:'pie',     amt:1,inp:[{g:'flour',a:2},{g:'pumpkin',a:1}],time:9000,n:'南瓜派',lv:5,needs:[{id:'flour',amt:2},{id:'pumpkin',amt:1}]}
 ],
 DAIRY:[
-  {out:'butter',  amt:1,inp:[{g:'milk',a:2}],          time:2700, n:'奶油', lv:1},
-  {out:'cheese',  amt:1,inp:[{g:'milk',a:3}],          time:3600, n:'起司', lv:2},
-  {out:'ice_cream',amt:1,inp:[{g:'milk',a:1},{g:'sugar',a:1}],time:4500,n:'冰淇淋',lv:3}
+  {out:'butter',  amt:1,inp:[{g:'milk',a:2}],          time:2700, n:'奶油', lv:1,needs:[{id:'milk',amt:2}]},
+  {out:'cheese',  amt:1,inp:[{g:'milk',a:3}],          time:3600, n:'起司', lv:2,needs:[{id:'milk',amt:3}]},
+  {out:'ice_cream',amt:1,inp:[{g:'milk',a:1},{g:'sugar',a:1}],time:4500,n:'冰淇淋',lv:3,needs:[{id:'milk',amt:1},{id:'sugar',amt:1}]}
+],
+JUICE:[
+  {out:'juice',    amt:2,inp:[{g:'tomato',a:2}],    time:900, n:'番茄汁', lv:1, needs:[{id:'tomato',amt:2}]},
+  {out:'juice',    amt:2,inp:[{g:'berry',a:2}],     time:900, n:'草莓汁', lv:1, needs:[{id:'berry',amt:2}]},
+  {out:'tomato_sauce',amt:1,inp:[{g:'tomato',a:3}], time:1800,n:'番茄醬', lv:2, needs:[{id:'tomato',amt:3}]},
+  {out:'jam',      amt:1,inp:[{g:'berry',a:3}],     time:2400,n:'草莓果醬',lv:3, needs:[{id:'berry',amt:3}]},
+],
+CHOCO:[
+  {out:'chocolate',amt:1,inp:[{g:'sugar',a:2}],          time:2400,n:'巧克力', lv:1, needs:[{id:'sugar',amt:2}]},
+  {out:'chocolate',amt:2,inp:[{g:'sugar',a:2},{g:'milk',a:1}],time:3000,n:'牛奶巧克力',lv:2,needs:[{id:'sugar',amt:2},{id:'milk',amt:1}]},
+  {out:'potion',   amt:1,inp:[{g:'indigo',a:2},{g:'sugar',a:1}],time:7200,n:'魔法藥水',lv:5,needs:[{id:'indigo',amt:2},{id:'sugar',amt:1}]},
+],
+CANDLE:[
+  {out:'candle',   amt:2,inp:[{g:'cotton',a:2}],    time:1200,n:'蠟燭',   lv:1, needs:[{id:'cotton',amt:2}]},
+  {out:'soap',     amt:2,inp:[{g:'cotton',a:1},{g:'butter',a:1}],time:1800,n:'香皂',lv:2,needs:[{id:'cotton',amt:1},{id:'butter',amt:1}]},
+  {out:'wool_coat',amt:1,inp:[{g:'wool',a:3},{g:'fabric',a:1}],time:5400,n:'羊毛大衣',lv:4,needs:[{id:'wool',amt:3},{id:'fabric',amt:1}]},
 ],
 TEXTILE:[
-  {out:'fabric',  amt:1,inp:[{g:'wool',a:2}],          time:3600, n:'布料', lv:1},
-  {out:'indigo_dye',amt:1,inp:[{g:'indigo',a:2}],      time:5400, n:'靛藍染料', lv:9},
-  {out:'sweater', amt:1,inp:[{g:'fabric',a:2}],        time:7200, n:'毛衣', lv:2},
-  {out:'silk',    amt:1,inp:[{g:'cotton',a:3}],        time:10800,n:'絲綢', lv:6},
-  {out:'dyed_fabric',amt:1,inp:[{g:'fabric',a:1},{g:'indigo_dye',a:1}],time:14400,n:'染色布料',lv:9}
+  {out:'fabric',  amt:1,inp:[{g:'wool',a:2}],          time:3600, n:'布料', lv:1,needs:[{id:'wool',amt:2}]},
+  {out:'indigo_dye',amt:1,inp:[{g:'indigo',a:2}],      time:5400, n:'靛藍染料', lv:9,needs:[{id:'indigo',amt:2}]},
+  {out:'sweater', amt:1,inp:[{g:'fabric',a:2}],        time:7200, n:'毛衣', lv:2,needs:[{id:'fabric',amt:2}]},
+  {out:'silk',    amt:1,inp:[{g:'cotton',a:3}],        time:10800,n:'絲綢', lv:6,needs:[{id:'cotton',amt:3}]},
+  {out:'dyed_fabric',amt:1,inp:[{g:'fabric',a:1},{g:'indigo_dye',a:1}],time:14400,n:'染色布料',lv:9,needs:[{id:'fabric',amt:1},{id:'indigo_dye',amt:1}]}
 ]
 };
 var OT=[
@@ -1019,8 +1038,8 @@ function checkLv(){
     },d*100)})(ci);}
     document.body.appendChild(ov);
     S.p.warehouseCap=(S.p.warehouseCap||100)+25;
-    checkAchievements('level',S.p.level);
-    updateWeekChallenge('level',S.p.level);
+    try{checkAchievements('level',S.p.level);}catch(e){}
+    try{updateWeekChallenge('level',S.p.level);}catch(e){}
   }
   if(leveled)saveP();
 }
@@ -1641,6 +1660,9 @@ var MULTITILE = {
   DAIRY: {w:2, h:2},
   TEXTILE:{w:2,h:2},
   CA:    {w:2, h:2},  // Castle 2x2
+  JUICE:  {w:2, h:2},
+  CHOCO:  {w:2, h:2},
+  CANDLE: {w:2, h:2}
 };
 
 // Get anchor cell for a multi-tile building at any cell it occupies
@@ -3422,25 +3444,86 @@ function rFac(){
   var idx=S.fixIdx,bId=S.fixId,b=IT[bId];if(!b){go('farm');return}
   var fac=S.p.factories[idx]||(S.p.factories[idx]={queue:[]});
   var recs=RC[bId]||[];
-  if(fac.queue.length>0&&fac.queue[0].done){var job=fac.queue[0];addG(job.out,job.amt);fac.queue.shift();saveP();toast('完成！'+(GD[job.out]?GD[job.out].e:'')+' ×'+job.amt)}
   var a=app();a.innerHTML='';a.appendChild(tbH());
   var pg=mkDiv('PG FADE');
   var bk=document.createElement('button');bk.className='BTN B-WH';bk.style.cssText='align-self:flex-start;padding:7px 12px;font-size:.78rem';bk.textContent='← 農場';bk.addEventListener('click',function(){go('farm')});pg.appendChild(bk);
-  var fTitle=document.createElement('div');fTitle.innerHTML='<div style="text-align:center;font-size:2rem">'+b.e+'</div><div style="text-align:center;font-weight:700;font-size:.95rem;margin-top:3px">'+b.n+'</div>';pg.appendChild(fTitle);
-  if(fac.queue.length>0){var j=fac.queue[0],gd=GD[j.out],now=Date.now();var pct=Math.min(100,Math.round((1-(j.endTime-now)/(j.totalTime*1000))*100));var jEl=document.createElement('div');jEl.innerHTML='<div class="CARD" style="background:#F0FFF4;border-color:#A5D6A7"><div style="font-size:.72rem;font-weight:700;color:#2E7D32;margin-bottom:6px">🔄 生產中</div><div style="display:flex;align-items:center;gap:10px"><div style="font-size:1.8rem">'+(gd?gd.e:'?')+'</div><div style="flex:1"><div style="font-size:.82rem;font-weight:700">'+(gd?gd.n:'?')+' ×'+j.amt+'</div><div class="TB2" style="height:6px;margin-top:4px"><div class="TF" style="width:'+pct+'%"></div></div><div style="font-size:.62rem;color:#9EA8B1;margin-top:3px">'+fmt(Math.max(0,Math.round((j.endTime-now)/1000)))+' 剩餘</div></div></div></div>';pg.appendChild(jEl.firstChild)}
-  var rH=mkDiv('');rH.innerHTML='<div class="SL">選擇配方</div>';
-  var rList=mkDiv('');rList.style.cssText='display:flex;flex-direction:column;gap:7px';
-  recs.forEach(function(rec,ri){
-    if(rec.lv&&S.p.level<rec.lv){var lk=mkDiv('CARD');lk.style.cssText='opacity:.4;font-size:.72rem';lk.textContent='Lv.'+rec.lv+' 解鎖';rList.appendChild(lk);return}
-    var can=rec.inp.every(function(it){return hasG(it.g,it.a)});var gd=GD[rec.out];
-    var card=mkDiv('CARD');card.style.cursor=can?'pointer':'default';card.style.opacity=can?'1':'.6';
-    var inpH='';rec.inp.forEach(function(it){var g2=GD[it.g];inpH+='<span style="background:'+(hasG(it.g,it.a)?'#E8F5E9':'#FEF2F2')+';border-radius:5px;padding:2px 6px;font-size:.64rem">'+(g2?g2.e:'?')+' '+it.a+'</span>'});
-    card.innerHTML='<div style="display:flex;align-items:center;gap:10px"><div style="font-size:1.8rem">'+(gd?gd.e:'?')+'</div><div style="flex:1"><div style="font-size:.82rem;font-weight:700">'+(gd?gd.n:'?')+' ×'+rec.amt+'</div><div style="margin:4px 0">'+inpH+'</div><div style="font-size:.62rem;color:#9EA8B1">'+fmt(rec.time)+'</div></div><div style="font-size:.82rem;font-weight:700;color:'+(can?'#4CAF50':'#9EA8B1')+'">'+( can?'▶ 製作':'材料不足')+'</div></div>';
-    if(can)(function(ri2){card.addEventListener('click',function(){var rec2=(RC[bId]||[])[ri2];if(!rec2)return;if(!rec2.inp.every(function(it){return hasG(it.g,it.a)})){toast('材料不足');return}rec2.inp.forEach(function(it){remG(it.g,it.a)});var fac2=S.p.factories[idx]||(S.p.factories[idx]={queue:[]});fac2.queue.push({out:rec2.out,amt:rec2.amt,endTime:Date.now()+rec2.time*1000,totalTime:rec2.time,done:false});saveP();toast('開始製作！');rFac()})})(ri);
-    rList.appendChild(card);
-  });
-  rH.appendChild(rList);pg.appendChild(rH);a.appendChild(pg);a.appendChild(bnH('farm'));
+  var fTitle=document.createElement('div');
+  fTitle.style.cssText='text-align:center;margin-bottom:10px';
+  fTitle.innerHTML='<div style="font-size:2rem">'+b.e+'</div><div style="font-size:1rem;font-weight:700">'+b.n+'</div>';
+  pg.appendChild(fTitle);
+
+  // COLLECT BUTTON - show prominently if job is done
+  function renderCollect(){
+    var existing=document.getElementById('fac-collect-area');
+    if(existing)existing.remove();
+    var ca=document.createElement('div');ca.id='fac-collect-area';
+    if(fac.queue.length>0&&fac.queue[0].done){
+      var job=fac.queue[0];
+      var g=GD[job.out];
+      ca.style.cssText='background:linear-gradient(135deg,#2E7D32,#1B5E20);border-radius:16px;padding:14px;text-align:center;cursor:pointer;margin-bottom:10px;animation:pop .3s ease';
+      ca.innerHTML='<div style="font-size:.72rem;color:rgba(255,255,255,.8);margin-bottom:4px">✅ 製作完成！</div>'+
+        '<div style="font-size:2rem">'+(g?g.e:'📦')+'</div>'+
+        '<div style="font-size:.85rem;font-weight:700;color:#fff;margin:4px 0">'+(g?g.n:job.out)+' ×'+job.amt+'</div>'+
+        '<div style="font-size:.75rem;color:#A5D6A7;font-weight:700">👆 點擊領取</div>';
+      ca.addEventListener('click',function(){
+        if(warehouseFull()){toast('⚠️ 倉庫滿了！');return;}
+        addG(job.out,job.amt);fac.queue.shift();saveP();
+        toast('領取！'+(g?g.e:'')+'×'+job.amt);
+        renderCollect();renderQueue();
+      });
+    } else if(fac.queue.length>0){
+      var j=fac.queue[0];
+      var left=Math.max(0,Math.ceil((j.endTime-Date.now())/1000));
+      var mins=Math.floor(left/60),secs=left%60;
+      ca.style.cssText='background:#E3F2FD;border-radius:12px;padding:10px;text-align:center;margin-bottom:10px';
+      ca.innerHTML='<div style="font-size:.72rem;color:#1565C0;font-weight:700">⏳ 製作中…</div>'+
+        '<div style="font-size:1.4rem;font-weight:900;color:#0D47A1">'+
+        (left>60?mins+'分'+secs+'秒':left+'秒')+'</div>';
+    }
+    var qArea=document.getElementById('fac-queue-area');
+    if(qArea)qArea.before(ca);else pg.appendChild(ca);
+  }
+
+  // Queue display
+  function renderQueue(){
+    var existing=document.getElementById('fac-queue-area');
+    if(existing)existing.remove();
+    var qa=document.createElement('div');qa.id='fac-queue-area';
+    // Recipes
+    var recHdr=document.createElement('div');recHdr.style.cssText='font-size:.78rem;font-weight:700;margin-bottom:8px;color:#1B2631';recHdr.textContent='製作配方';qa.appendChild(recHdr);
+    recs.forEach(function(rec){
+      var card=mkDiv('CARD');card.style.cssText='padding:10px 12px;cursor:pointer';
+      var canMake=rec.needs.every(function(n){return(S.p.inv[n.id]||0)>=n.amt;});
+      card.innerHTML='<div style="display:flex;align-items:center;gap:8px">'+
+        '<div style="font-size:1.5rem">'+(GD[rec.out]?GD[rec.out].e:'?')+'</div>'+
+        '<div style="flex:1"><div style="font-size:.82rem;font-weight:700">'+(GD[rec.out]?GD[rec.out].n:rec.out)+'</div>'+
+        '<div style="font-size:.65rem;color:#9EA8B1">材料：'+rec.needs.map(function(n){return(GD[n.id]?GD[n.id].e:n.id)+'×'+n.amt+' ('+(S.p.inv[n.id]||0)+' 個)'}).join(' ')+'</div>'+
+        '<div style="font-size:.65rem;color:#4CAF50">⏱ '+Math.round(rec.time/60)+'分鐘</div></div>'+
+        '<div style="font-size:.72rem;font-weight:700;color:'+(canMake?'#2E7D32':'#EF4444')+'">'+(canMake?'✅ 可製作':'❌ 材料不足')+'</div></div>';
+      if(canMake){
+        card.addEventListener('click',function(){
+          if(fac.queue.length>=3){toast('隊列已滿！');return;}
+          rec.needs.forEach(function(n){S.p.inv[n.id]-=n.amt;if(S.p.inv[n.id]<=0)delete S.p.inv[n.id];});
+          fac.queue.push({out:rec.out,amt:rec.amt,endTime:Date.now()+rec.time*1000,done:false});
+          saveP();toast('開始製作！');renderCollect();renderQueue();
+        });
+      }
+      qa.appendChild(card);
+    });
+    pg.appendChild(qa);
+  }
+
+  renderCollect();renderQueue();
+  // Timer to update countdown
+  var tickFac=setInterval(function(){
+    if(S.sc!=='factory'){clearInterval(tickFac);return;}
+    if(fac.queue.length>0&&!fac.queue[0].done&&Date.now()>=fac.queue[0].endTime){
+      fac.queue[0].done=true;saveP();renderCollect();
+    } else {renderCollect();}
+  },1000);
+  a.appendChild(pg);a.appendChild(bnH('farm'));
 }
+
 function rOrd(){
   var p=S.p,a=app();a.innerHTML='';a.appendChild(tbH());
   if(!p.orders||p.orders.length<1)genOrders();
@@ -3756,21 +3839,36 @@ function rCorrectionPage(){
     wrong.forEach(function(w){
       var qi=w.i,item=w.item,q=item.q;
       var card=mkDiv('CARD');card.style.cssText='padding:12px;border-left:4px solid #EF4444';
-      var qText=q.isClock?('🕐 '+q.a+' (時鐘題)'):q.q+' = ?';
+      // Clock SVG for clock questions
+      if(q.isClock){
+        var cDiv=document.createElement('div');cDiv.style.cssText='text-align:center;margin:6px 0';
+        cDiv.innerHTML=clockSVG(q.h,q.m);
+        card.appendChild(cDiv);
+      }
+      var qLabel=document.createElement('div');
+      qLabel.style.cssText='font-size:.9rem;font-weight:700;margin-bottom:6px';
+      qLabel.textContent=q.isClock?'🕐 幾點幾分？':q.q+' = ?';
+      card.appendChild(qLabel);
       var wrong_ans=item.val||'（未作答）';
-      card.innerHTML='<div style="font-size:.9rem;font-weight:700;margin-bottom:6px">'+qText+'</div>'+
-        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
-          '<span style="font-size:.72rem;color:#EF4444;text-decoration:line-through">✗ '+wrong_ans+'</span>'+
-          '<span style="font-size:.72rem;color:#9EA8B1">→</span>'+
-          '<input type="text" inputmode="numeric" id="cor-'+qi+'" placeholder="訂正" '+
-            'style="border:2px solid #C8E6C9;border-radius:8px;padding:6px 10px;font-size:1rem;font-weight:700;width:90px;text-align:center;outline:none;font-family:inherit">'+
-          (S.p.settings.hw?'<button onclick="hwFillCorr('+qi+')" style="background:#9C27B0;color:#fff;border:none;border-radius:50px;padding:5px 10px;font-size:.75rem;font-weight:700;cursor:pointer;font-family:inherit">✏️</button>':'')+
-          '<button onclick="showCorrAns('+qi+')" id="ans-btn-'+qi+'" '+
-            'style="background:#FF9800;color:#fff;border:none;border-radius:50px;padding:5px 12px;font-size:.75rem;font-weight:700;cursor:pointer;font-family:inherit">👁 答案</button>'+
-        '</div>'+
-        '<div id="ans-reveal-'+qi+'" style="display:none;margin-top:6px;background:#FFF8E1;border-radius:8px;padding:6px 10px;font-size:1rem;font-weight:900;color:#1565C0">'+
-          (q.isClock?q.a:q.q+' = '+q.a)+
-        '</div>';
+      // Wrong answer + correction input
+      var row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px;flex-wrap:wrap';
+      row.innerHTML='<span style="font-size:.72rem;color:#EF4444;text-decoration:line-through">✗ '+wrong_ans+'</span>'+
+        '<span style="font-size:.72rem;color:#9EA8B1">→</span>'+
+        '<input type="text" inputmode="'+(q.isClock?'text':'numeric')+'" id="cor-'+qi+'" placeholder="'+(q.isClock?'例：3:30':'訂正')+'" '+
+          'style="border:2px solid #C8E6C9;border-radius:8px;padding:6px 10px;font-size:1rem;font-weight:700;width:'+(q.isClock?'110px':'90px')+';text-align:center;outline:none;font-family:inherit">'+
+        (S.p.settings&&S.p.settings.hw?'<button onclick="hwFillCorr('+qi+')" style="background:#9C27B0;color:#fff;border:none;border-radius:50px;padding:5px 10px;font-size:.75rem;font-weight:700;cursor:pointer;font-family:inherit">✏️</button>':'')+
+        '<button onclick="showCorrAns('+qi+')" id="ans-btn-'+qi+'" '+
+          'style="background:#FF9800;color:#fff;border:none;border-radius:50px;padding:5px 12px;font-size:.75rem;font-weight:700;cursor:pointer;font-family:inherit">👁 答案</button>';
+      card.appendChild(row);
+      // Answer reveal
+      var reveal=document.createElement('div');reveal.id='ans-reveal-'+qi;
+      reveal.style.cssText='display:none;margin-top:6px;background:#FFF8E1;border-radius:8px;padding:6px 10px;font-size:1rem;font-weight:900;color:#1565C0;text-align:center';
+      if(q.isClock){
+        reveal.innerHTML=clockSVG(q.h,q.m)+'<div>答案：'+q.a+'</div>';
+      } else {
+        reveal.textContent=q.q+' = '+q.a;
+      }
+      card.appendChild(reveal);
       pg.appendChild(card);
     });
   }
@@ -3935,7 +4033,18 @@ function rSet(){
   var c1=mkDiv('CARD');c1.innerHTML='<div class="SL">帳號設定</div>';
   // Display name
   var nr=mkDiv('STROW');nr.innerHTML='<div><div style="font-size:.85rem;font-weight:700">顯示名稱</div><div style="font-size:.68rem;color:#9EA8B1">目前：'+p.displayName+'</div></div>';
-  var nb=document.createElement('button');nb.className='BTN B-WH';nb.style.cssText='padding:6px 12px;font-size:.74rem';nb.textContent='修改';nb.addEventListener('click',function(){var n=prompt('輸入新的顯示名稱：',S.p.displayName);if(n&&n.trim()){S.p.displayName=n.trim();saveP();rSet();toast('名稱已更新！')}});nr.appendChild(nb);c1.appendChild(nr);
+  var nb=document.createElement('button');nb.className='BTN B-WH';nb.style.cssText='padding:6px 12px;font-size:.74rem';nb.textContent='修改';nb.addEventListener('click',function(){var ov=document.createElement('div');ov.className='POPUP';
+  var box=document.createElement('div');box.className='PBX';
+  box.innerHTML='<div style="font-weight:700;margin-bottom:10px">修改顯示名稱</div>';
+  var inp=document.createElement('input');inp.className='INP';inp.value=S.p.displayName;inp.maxLength=20;
+  var ok=document.createElement('button');ok.className='BTN B-GR BW';ok.style.padding='11px';ok.textContent='確認';
+  ok.addEventListener('click',function(){
+    var n=inp.value.trim();if(!n){toast('名稱不能空白');return;}
+    S.p.displayName=n;saveP();ov.remove();rSet();toast('名稱已更新！');
+  });
+  var cl=document.createElement('button');cl.className='BTN B-WH BW';cl.style.cssText='padding:9px;font-size:.82rem';cl.textContent='取消';cl.addEventListener('click',function(){ov.remove()});
+  box.appendChild(inp);box.appendChild(ok);box.appendChild(cl);ov.appendChild(box);
+  ov.addEventListener('click',function(e){if(e.target===ov)ov.remove()});document.body.appendChild(ov)});nr.appendChild(nb);c1.appendChild(nr);
   // Change PIN
   var pr=mkDiv('STROW');pr.innerHTML='<div><div style="font-size:.85rem;font-weight:700">修改 PIN 密碼</div></div>';
   var pb=document.createElement('button');pb.className='BTN B-WH';pb.style.cssText='padding:6px 12px;font-size:.74rem';pb.textContent='修改';pb.addEventListener('click',showChgPin);pr.appendChild(pb);c1.appendChild(pr);
