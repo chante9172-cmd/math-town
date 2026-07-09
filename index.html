@@ -134,12 +134,22 @@ function initSupabase(){
       return {
         upsert: async function(data, opts){
           try{
-            var r=await fetch(base+'?on_conflict='+(opts&&opts.onConflict||'username'), {
+            var onConf=opts&&opts.onConflict?opts.onConflict:'username';
+            var r=await fetch(base+'?on_conflict='+onConf, {
               method:'POST',
-              headers:{'Content-Type':'application/json','apikey':key,'Authorization':'Bearer '+key,'Prefer':'resolution=merge-duplicates'},
-              body:JSON.stringify(data)
+              headers:{
+                'Content-Type':'application/json',
+                'apikey':key,
+                'Authorization':'Bearer '+key,
+                'Prefer':'resolution=merge-duplicates,return=representation'
+              },
+              body:JSON.stringify(Array.isArray(data)?data:[data])
             });
-            if(!r.ok){var e=await r.text();return{error:{message:e}};}
+            if(!r.ok){
+              var eText=await r.text();
+              console.error('Supabase upsert failed:',r.status,eText);
+              return{error:{message:'HTTP '+r.status+': '+eText}};
+            }
             return{data:true,error:null};
           }catch(e){return{error:{message:e.message}};}
         },
@@ -185,7 +195,10 @@ async function supabaseSave(){
       coins:S.p.coins||0,
       updated_at:new Date().toISOString()
     },{onConflict:'username'});
-    if(res.error){console.warn('Supabase save error:',res.error.message);return false;}
+    if(res.error){
+      console.error('Supabase save error:',JSON.stringify(res.error));
+      return false;
+    }
     return true;
   }catch(e){console.warn('Supabase save failed:',e);return false}
 }
@@ -921,13 +934,16 @@ function getAccs(){try{return JSON.parse(localStorage.getItem('mt_a')||'[]')}cat
 function saveAccs(){try{localStorage.setItem('mt_a',JSON.stringify(S.accounts))}catch(e){}}
 function hPin(p){var h=0;for(var i=0;i<p.length;i++)h=(h*31+p.charCodeAt(i))&0xFFFFFF;return h.toString(16)}
 function getKey(){try{return localStorage.getItem('mt_k')||''}catch(e){return''}}
-async function saveP(){if(!S.p)return;var k='mt_p_'+S.p.name,d=JSON.stringify(S.p);try{if(window.storage)await window.storage.set(k,d,true)}catch(e){}try{localStorage.setItem(k,d)}catch(e){
-  // Debounced cloud sync
+async function saveP(){
+  if(!S.p)return;
+  var k='mt_p_'+S.p.name, d=JSON.stringify(S.p);
+  // Save to localStorage
+  try{localStorage.setItem(k,d)}catch(e){}
+  // Auto-sync to Supabase (debounced 2s)
   if(supabase&&S.p){
     clearTimeout(window._spT);
     window._spT=setTimeout(function(){supabaseSave();},2000);
   }
-}
 } // close saveP
 async function loadPD(name){var k='mt_p_'+name;try{if(window.storage){var r=await window.storage.get(k,true);if(r&&r.value)return JSON.parse(r.value)}}catch(e){}try{var d=localStorage.getItem(k);if(d)return JSON.parse(d)}catch(e){}return null}
 function today(){return new Date().toISOString().slice(0,10)}
@@ -2685,6 +2701,119 @@ async function doReg(){
   if(!disp){err.textContent='請輸入顯示名稱';return}
   if(!/^\d{4}$/.test(pin)){err.textContent='PIN需為4位數字';return}
   if(pin!==pin2){err.textContent='PIN不一致';return}
+  if(!supabase)initSupabase();
+  // Check if taken
+  if(supabase){
+    err.textContent='檢查帳號…';
+    try{
+      var chk=await supabase.from('mt_saves').select('username').eq('username',name).single();
+      if(chk.data){err.textContent='❌ 帳號已被使用';return}
+    }catch(e){}
+  } else {
+    var localAccs=getAccs();
+    if(localAccs.find(function(a){return a.name===name})){err.textContent='❌ 帳號已存在';return}
+  }
+  err.textContent='建立中…';
+  var p=newP(name,pin,disp);
+  S.p=p;
+  var accs=getAccs();
+  accs.push({name:name,displayName:disp,pinHash:hPin(pin)});saveAccs();
+  saveP();
+  // Immediately save to cloud
+  if(supabase){
+    err.textContent='☁️ 同步中…';
+    await supabaseSave();
+  }
+  genOrders();startTick();go('home');
+}
+
+
+function rLogin(){
+  S.accounts=getAccs();
+  var a=app();a.innerHTML='';
+  var wrap=mkDiv('','<div style="background:linear-gradient(135deg,#1565C0,#2E7D32);padding:20px 16px;text-align:center"><div style="font-size:2rem">🔑</div><div style="font-size:1.2rem;font-weight:900;color:#fff;margin-top:6px">歡迎回來</div></div>');
+  wrap.style.cssText='background:#fff;flex:1;overflow-y:auto';
+  var form=mkDiv('');form.style.padding='20px 16px';form.style.display='flex';form.style.flexDirection='column';form.style.gap='14px';
+  // Account list
+  if(S.accounts.length>0){
+    var listDiv=mkDiv('');listDiv.innerHTML='<div class="SL">選擇帳號</div>';
+    var listInner=mkDiv('');listInner.style.cssText='display:flex;flex-direction:column;gap:7px';
+    S.accounts.forEach(function(acc){
+      var item=mkDiv('');item.style.cssText='background:#F7FBF7;border-radius:12px;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border:1.5px solid #E0E7EF;cursor:pointer';
+      item.innerHTML='<div><div style="font-weight:700;font-size:.88rem">'+acc.displayName+'</div><div style="font-size:.62rem;color:#9EA8B1">@'+acc.name+'</div></div><span style="color:#1976D2;font-size:.78rem;font-weight:700">選擇 →</span>';
+      item.addEventListener('click',function(){document.getElementById('ln').value=acc.name;document.getElementById('lp').focus()});
+      listInner.appendChild(item);
+    });
+    listDiv.appendChild(listInner);form.appendChild(listDiv);
+    var sep=mkDiv('');sep.style.cssText='text-align:center;color:#9EA8B1;font-size:.72rem';sep.textContent='或手動輸入';form.appendChild(sep);
+  }
+  var extraFields=document.createElement('div');
+  extraFields.innerHTML='<div><div class="LABEL">帳號</div><input class="INP" id="ln" placeholder="輸入帳號名稱"></div><div><div class="LABEL">PIN</div><input class="INP" id="lp" type="password" inputmode="numeric" maxlength="4" placeholder="4 位數字 PIN"></div><div id="lerr" style="color:#EF4444;font-size:.72rem;text-align:center;min-height:16px"></div>';
+  while(extraFields.firstChild)form.appendChild(extraFields.firstChild);
+  var b1=document.createElement('button');b1.className='BTN B-SK BW';b1.style.padding='14px';b1.textContent='🔑 登入';b1.addEventListener('click',doLogin);
+  var b2=document.createElement('button');b2.className='BTN B-WH BW';b2.style.padding='11px';b2.textContent='✨ 建立新帳號';b2.addEventListener('click',function(){go('register')});
+  form.appendChild(b1);form.appendChild(b2);
+  wrap.appendChild(form);a.appendChild(wrap);
+}
+async function doLogin(){
+  var name=(document.getElementById('ln')?.value||'').trim().toLowerCase();
+  var pin=(document.getElementById('lp')?.value||'').trim();
+  var err=document.getElementById('lerr');
+  if(!name){err.textContent='請輸入帳號';return}
+  if(!/^\d{4}$/.test(pin)){err.textContent='PIN需為4位數字';return}
+  if(!supabase)initSupabase();
+  err.textContent='登入中…';
+  var p=null;
+  // Try Supabase first
+  if(supabase){
+    try{
+      var res=await supabase.from('mt_saves').select('*').eq('username',name).single();
+      if(res.data&&res.data.save_code){
+        var cloud=importSaveCode(res.data.save_code);
+        if(cloud){
+          if(cloud.pin!==hPin(pin)){err.textContent='❌ PIN錯誤';return}
+          p=cloud; p.name=name;
+        }
+      }
+    }catch(e){console.warn('Cloud login err:',e.message)}
+  }
+  // Fallback: localStorage
+  if(!p){
+    var pd=await loadPD(name);
+    if(pd){
+      if(pd.pin!==hPin(pin)){err.textContent='❌ PIN錯誤';return}
+      p=pd;
+      // Push to cloud for future cross-device access
+      S.p=p; if(supabase)supabaseSave();
+    }
+  }
+  if(!p){err.textContent='找不到帳號，請先註冊';return}
+  // Apply defaults
+  ['farms','factories','animalSlots','bldgInv','collect','mgDone','inv','orders'].forEach(function(k){if(!p[k])p[k]=k==='orders'?[]:{}});
+  if(!p.av)p.av='🧒';
+  if(!p.displayName)p.displayName=p.n||name;
+  if(!p.name)p.name=name;
+  if(!p.town||p.town.length<MSZ*MSZ)p.town=p.town||[]; while(p.town.length<MSZ*MSZ)p.town.push(null);
+  // Daily login
+  if(p.lastDay!==today()){p.coins=(p.coins||0)+20;p.lastDay=today();p.loginDays=(p.loginDays||0)+1;}
+  // Daily quest
+  if(!p.dailyQuest||p.dailyQuest.day!==today()){
+    var qs=[{type:'quiz',desc:'完成一次答題',reward:50,done:false},{type:'order',desc:'完成2個訂單',target:2,progress:0,reward:80,done:false},{type:'harvest',desc:'收穫3次農作物',target:3,progress:0,reward:60,done:false}];
+    p.dailyQuest={day:today(),quest:qs[Math.floor(Math.random()*qs.length)],done:false};
+  }
+  S.p=p; saveP(); startTick(); go('home');
+}
+
+async function doReg(){
+  var name=(document.getElementById('rn')?.value||'').trim().toLowerCase();
+  var disp=(document.getElementById('rd')?.value||'').trim();
+  var pin=(document.getElementById('rp')?.value||'').trim();
+  var pin2=(document.getElementById('rp2')?.value||'').trim();
+  var err=document.getElementById('rerr');
+  if(!name||name.length<2){err.textContent='帳號至少2字';return}
+  if(!disp){err.textContent='請輸入顯示名稱';return}
+  if(!/^\d{4}$/.test(pin)){err.textContent='PIN需為4位數字';return}
+  if(pin!==pin2){err.textContent='PIN不一致';return}
   // Check if username taken (local + cloud)
   var localAccs=getAccs();
   if(localAccs.find(function(a){return a.name===name})){err.textContent='帳號已存在';return}
@@ -2750,14 +2879,23 @@ async function doLogin(){
     try{
       err.textContent='☁️ 從雲端載入中…';
       var res=await supabase.from('mt_saves').select('*').eq('username',name).single();
-      if(res.error&&res.error.code!=='PGRST116'){
-        err.textContent='雲端錯誤：'+res.error.message;
+      if(res.error){
+        if(res.error.code==='PGRST116'||res.error.message===''){
+          // Not found in cloud - will try localStorage
+        } else {
+          err.textContent='雲端錯誤：'+res.error.message;
+          console.error('Supabase error:',JSON.stringify(res.error));
+        }
       } else if(res.data&&res.data.save_code){
         var cloud=importSaveCode(res.data.save_code);
         if(cloud&&cloud.pin===hPin(pin)){p=cloud;p.name=name;}
-        else if(cloud){err.textContent='PIN錯誤';return}
+        else if(cloud){err.textContent='PIN錯誤';return;}
+        else{err.textContent='存檔損壞，請重試';}
       }
-    }catch(e){err.textContent='連線失敗：'+e.message;}
+    }catch(e){
+      console.error('Supabase login error:',e.message,e);
+      err.textContent='連線失敗（'+e.message+'）';
+    }
   }
   // 2. Fallback: localStorage
   if(!p){
@@ -4038,9 +4176,17 @@ function rSet(){
   box.innerHTML='<div style="font-weight:700;margin-bottom:10px">修改顯示名稱</div>';
   var inp=document.createElement('input');inp.className='INP';inp.value=S.p.displayName;inp.maxLength=20;
   var ok=document.createElement('button');ok.className='BTN B-GR BW';ok.style.padding='11px';ok.textContent='確認';
-  ok.addEventListener('click',function(){
+  ok.addEventListener('click',async function(){
     var n=inp.value.trim();if(!n){toast('名稱不能空白');return;}
-    S.p.displayName=n;saveP();ov.remove();rSet();toast('名稱已更新！');
+    S.p.displayName=n;
+    // Update accounts list too
+    var accs=getAccs();
+    var acc=accs.find(function(a){return a.name===S.p.name;});
+    if(acc)acc.displayName=n;
+    saveAccs();
+    saveP();
+    if(supabase){clearTimeout(window._spT);await supabaseSave();}
+    ov.remove();rSet();toast('名稱已更新！');
   });
   var cl=document.createElement('button');cl.className='BTN B-WH BW';cl.style.cssText='padding:9px;font-size:.82rem';cl.textContent='取消';cl.addEventListener('click',function(){ov.remove()});
   box.appendChild(inp);box.appendChild(ok);box.appendChild(cl);ov.appendChild(box);
@@ -4059,23 +4205,14 @@ function rSet(){
   pg.appendChild(c2);
   // Info
   var c3=mkDiv('CARD');c3.innerHTML='<div class="BDR"><span style="color:#4A5568">帳號</span><span style="font-weight:700">@'+p.name+'</span></div><div class="BDR"><span style="color:#4A5568">等級</span><span style="font-weight:700">Lv.'+p.level+'</span></div><div class="BDR"><span style="color:#4A5568">登入天數</span><span style="font-weight:700">'+(p.loginDays||1)+'天</span></div>';pg.appendChild(c3);
-  // Account sync button
-  var syncBtn=document.createElement('button');syncBtn.className='BTN B-SK BW';syncBtn.style.cssText='padding:11px;font-size:.85rem';
-  syncBtn.innerHTML='👤 帳號同步 / 匯出存檔';
-  // Also add a quick cloud push button
-  var pushBtn=document.createElement('button');pushBtn.className='BTN B-SK BW';pushBtn.style.cssText='padding:11px;font-size:.85rem';
-  pushBtn.innerHTML='☁️ 立即上傳存檔到雲端';
-  pushBtn.addEventListener('click',async function(){
-    if(!supabase){initSupabase();}
-    if(!supabase){toast('Supabase 未設定');return;}
-    pushBtn.textContent='上傳中…';pushBtn.disabled=true;
-    var ok=await supabaseSave();
-    pushBtn.disabled=false;pushBtn.innerHTML='☁️ 立即上傳存檔到雲端';
-    toast(ok?'✅ 上傳成功！其他裝置可登入了':'❌ 上傳失敗，請稍後再試');
-  });
-  pg.appendChild(pushBtn);
-  syncBtn.addEventListener('click',function(){rAccountSync()});
-  pg.appendChild(syncBtn);
+  // Sync status (auto, no button needed)
+  var syncStatus=mkDiv('CARD');
+  syncStatus.style.cssText='background:#E8F5E9;border-color:#A5D6A7;padding:10px 14px';
+  syncStatus.innerHTML='<div style="display:flex;align-items:center;gap:8px">'+
+    '<span style="font-size:1.2rem">'+(supabase?'☁️':'💾')+'</span>'+
+    '<div><div style="font-size:.76rem;font-weight:700;color:#2E7D32">'+(supabase?'自動雲端同步中':'本機儲存模式')+'</div>'+
+    '<div style="font-size:.65rem;color:#4CAF50">'+(supabase?'任何裝置登入同帳號即可同步':'僅本機有存檔')+'</div></div></div>';
+  pg.appendChild(syncStatus);
   var lo=document.createElement('button');lo.className='BTN B-RD BW';lo.style.padding='12px';lo.textContent='🚪 登出';lo.addEventListener('click',function(){
   var ov=document.createElement('div');ov.className='POPUP';
   var box=document.createElement('div');box.className='PBX';box.style.textAlign='center';
@@ -4108,7 +4245,13 @@ function showChgPin(){
     if(hPin(op)!==S.p.pin){err.textContent='目前 PIN 錯誤';return}
     if(!/^\d{4}$/.test(np)){err.textContent='新 PIN 需為 4 位數字';return}
     if(np!==np2){err.textContent='新 PIN 不一致';return}
-    S.p.pin=hPin(np);S.accounts=getAccs();var acc=S.accounts.find(function(a){return a.name===S.p.name});if(acc)acc.pinHash=hPin(np);saveAccs();saveP();ov.remove();toast('✅ PIN 已修改！');
+    S.p.pin=hPin(np);
+    S.accounts=getAccs();
+    var acc=S.accounts.find(function(a){return a.name===S.p.name});
+    if(acc)acc.pinHash=hPin(np);
+    saveAccs();saveP();
+    if(supabase){clearTimeout(window._spT);supabaseSave();}
+    ov.remove();toast('✅ PIN 已修改！登入時請用新 PIN');
   });
   var ccl=document.createElement('button');ccl.style.cssText='display:block;width:100%;padding:11px;background:#F7F9FA;border:1.5px solid #E0E7EF;color:#1B2631;border-radius:12px;font-size:.88rem;cursor:pointer;font-family:inherit';ccl.textContent='取消';ccl.addEventListener('click',function(){ov.remove()});
   box.appendChild(cfm);box.appendChild(ccl);ov.appendChild(box);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove()});document.body.appendChild(ov);
