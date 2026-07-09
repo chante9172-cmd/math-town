@@ -103,7 +103,24 @@ input[type=number]::-webkit-inner-spin-button{display:none}
 </head>
 <body>
 <div id="app"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
+// ═══════════════════════════════════════════════
+// ★ 在這裡填入你的 Supabase 設定
+// 去 Supabase → Settings → API Keys 找到這兩個值
+// ═══════════════════════════════════════════════
+var SUPA_URL = 'https://bbheqrizaglidbfyrkuq.supabase.co';
+var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJiaGVxcml6YWdsaWRiZnlya3VxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2MjMxMDcsImV4cCI6MjA5NTE5OTEwN30.MJCul5x8AWBFGsYNhdUH0BOjo2x7PpbtE69PDH9E5QI';
+// ═══════════════════════════════════════════════
+</script>
+<script>
+
+
+// ============================================================
+// SUPABASE SYNC - Auto-saves to cloud on every saveP
+// Using official Supabase SDK via CDN
+// ============================================================
+
 // ═══════════════════════════════════════════════
 // ★ 在這裡填入你的 Supabase 設定
 // 去 Supabase → Settings → API 找到這兩個值
@@ -111,104 +128,57 @@ input[type=number]::-webkit-inner-spin-button{display:none}
 var SUPA_URL = 'https://bbheqrizaglidbfyrkuq.supabase.co';
 var SUPA_KEY = 'sb_publishable_FwGRDxGgM9vmXOAxwUjdAA_lT683X_o';
 // ═══════════════════════════════════════════════
-</script>
-<script>
+
+
 
 
 // ============================================================
 // SUPABASE SYNC - fill in your project URL and anon key
 // ============================================================
 // SUPA_URL and SUPA_KEY defined in config script
-// Supabase REST API (no external library needed)
-var supabase = null; // will be set to true when config is valid
+// Supabase client (official SDK)
+var sb = null;
+var supabase = null;
 
 function initSupabase(){
-  var hasConfig=SUPA_URL&&SUPA_URL.includes('.supabase.co')&&SUPA_KEY&&SUPA_KEY.length>10;
+  var hasConfig=SUPA_URL&&SUPA_URL.includes('.supabase.co')&&SUPA_KEY&&SUPA_KEY.startsWith('eyJ');
   if(!hasConfig)return false;
-  supabase={
-    _url: SUPA_URL+'/rest/v1',
-    _key: SUPA_KEY,
-    from: function(table){
-      var base=this._url+'/'+table;
-      var key=this._key;
-      return {
-        upsert: async function(data, opts){
-          try{
-            var onConf=opts&&opts.onConflict?opts.onConflict:'username';
-            var r=await fetch(base+'?on_conflict='+onConf, {
-              method:'POST',
-              headers:{
-                'Content-Type':'application/json',
-                'apikey':key,
-                'Authorization':'Bearer '+key,
-                'Prefer':'resolution=merge-duplicates,return=representation'
-              },
-              body:JSON.stringify(Array.isArray(data)?data:[data])
-            });
-            if(!r.ok){
-              var eText=await r.text();
-              console.error('Supabase upsert failed:',r.status,eText);
-              return{error:{message:'HTTP '+r.status+': '+eText}};
-            }
-            return{data:true,error:null};
-          }catch(e){return{error:{message:e.message}};}
-        },
-        select: function(cols){
-          var q=base+'?select='+(cols||'*');
-          return {
-            eq: function(col,val){
-              var qf=q+'&'+col+'=eq.'+encodeURIComponent(val);
-              return {
-                single: async function(){
-                  try{
-                    var r=await fetch(qf,{headers:{'apikey':key,'Authorization':'Bearer '+key,'Accept':'application/vnd.pgrst.object+json'}});
-                    if(r.status===406||r.status===404)return{data:null,error:{code:'PGRST116'}};
-                    if(!r.ok)return{data:null,error:{message:'HTTP '+r.status}};
-                    var d=await r.json();
-                    return{data:d,error:null};
-                  }catch(e){return{data:null,error:{message:e.message}};}
-                }
-              };
-            }
-          };
-        }
-      };
-    }
-  };
-  hookSupabaseSave();
-  console.log('✅ Supabase REST connected!');
-  return true;
+  var lib=window.supabase;
+  if(!lib||!lib.createClient){console.warn('Supabase SDK not loaded');return false;}
+  try{
+    sb=lib.createClient(SUPA_URL,SUPA_KEY);
+    supabase=sb;
+    hookSupabaseSave();
+    console.log('✅ Supabase connected!');
+    return true;
+  }catch(e){console.error('Supabase init failed:',e);return false}
 }
+
 
 async function supabaseSave(){
-  if(!supabase||!S.p)return false;
+  if(!sb||!S.p)return false;
   var code=exportSaveCode();
   if(!code)return false;
-  var uname=(S.p.name||S.p.displayName||'').toLowerCase().replace(/[^a-z0-9_]/g,'_');
+  var uname=(S.p.name||S.p.displayName||'').trim().toLowerCase();
   if(!uname)return false;
   try{
-    var res=await supabase.from('mt_saves').upsert({
-      username:uname,
-      display_name:S.p.displayName||S.p.name,
-      save_code:code,
-      level:S.p.level||1,
-      coins:S.p.coins||0,
+    var{error}=await sb.from('mt_saves').upsert({
+      username:uname,display_name:S.p.displayName||S.p.name,
+      save_code:code,level:S.p.level||1,coins:S.p.coins||0,
       updated_at:new Date().toISOString()
     },{onConflict:'username'});
-    if(res.error){
-      console.error('Supabase save error:',JSON.stringify(res.error));
-      return false;
-    }
+    if(error){console.error('Save error:',error.message);return false;}
     return true;
-  }catch(e){console.warn('Supabase save failed:',e);return false}
+  }catch(e){console.error('Save failed:',e.message);return false}
 }
 
+
 async function supabaseLoad(username){
-  if(!supabase)return null;
+  if(!sb)return null;
   try{
-    var res=await supabase.from('mt_saves').select('*').eq('username',username.toLowerCase()).single();
-    if(res.error||!res.data)return null;
-    return res.data.save_code;
+    var{data,error}=await sb.from('mt_saves').select('*').eq('username',username.toLowerCase()).maybeSingle();
+    if(error){console.error('Load error:',error.message);return null;}
+    return data?data.save_code:null;
   }catch(e){return null}
 }
 
@@ -940,7 +910,7 @@ async function saveP(){
   // Save to localStorage
   try{localStorage.setItem(k,d)}catch(e){}
   // Auto-sync to Supabase (debounced 2s)
-  if(supabase&&S.p){
+  if(sb&&S.p){
     clearTimeout(window._spT);
     window._spT=setTimeout(function(){supabaseSave();},2000);
   }
@@ -2706,7 +2676,7 @@ async function doReg(){
   if(supabase){
     err.textContent='檢查帳號…';
     try{
-      var chk=await supabase.from('mt_saves').select('username').eq('username',name).single();
+      var chk=await sb.from('mt_saves').select('username').eq('username',name).maybeSingle();
       if(chk.data){err.textContent='❌ 帳號已被使用';return}
     }catch(e){}
   } else {
@@ -2767,27 +2737,40 @@ async function doLogin(){
   // Try Supabase first
   if(supabase){
     try{
-      var res=await supabase.from('mt_saves').select('*').eq('username',name).single();
+      console.log('🔍 Supabase query for:',name);
+      var res=await sb.from('mt_saves').select('*').eq('username',name).maybeSingle();
+      console.log('📦 Supabase result:',JSON.stringify({error:res.error,hasData:!!res.data}));
       if(res.data&&res.data.save_code){
         var cloud=importSaveCode(res.data.save_code);
+        console.log('🔑 importSaveCode result:',cloud?'OK':'null');
         if(cloud){
           if(cloud.pin!==hPin(pin)){err.textContent='❌ PIN錯誤';return}
           p=cloud; p.name=name;
+          console.log('✅ Cloud login success!');
         }
+      } else {
+        console.log('⚠️ No data in Supabase for:',name,'error:',res.error);
       }
     }catch(e){console.warn('Cloud login err:',e.message)}
+  } else {
+    console.log('⚠️ Supabase not initialized!');
   }
   // Fallback: localStorage
   if(!p){
+    console.log('🔍 Trying localStorage for:',name);
     var pd=await loadPD(name);
+    console.log('💾 localStorage result:', pd?'found':'null');
     if(pd){
       if(pd.pin!==hPin(pin)){err.textContent='❌ PIN錯誤';return}
       p=pd;
-      // Push to cloud for future cross-device access
+      console.log('✅ LocalStorage login success! Pushing to cloud...');
       S.p=p; if(supabase)supabaseSave();
     }
   }
-  if(!p){err.textContent='找不到帳號，請先註冊';return}
+  if(!p){
+    err.textContent='找不到帳號！請先在原本的裝置「設定」中確認已同步，或重新註冊';
+    return;
+  }
   // Apply defaults
   ['farms','factories','animalSlots','bldgInv','collect','mgDone','inv','orders'].forEach(function(k){if(!p[k])p[k]=k==='orders'?[]:{}});
   if(!p.av)p.av='🧒';
@@ -2820,7 +2803,7 @@ async function doReg(){
   if(supabase){
     err.textContent='檢查帳號中…';
     try{
-      var chk=await supabase.from('mt_saves').select('username').eq('username',name).single();
+      var chk=await sb.from('mt_saves').select('username').eq('username',name).maybeSingle();
       if(chk.data){err.textContent='帳號已被使用，請換一個';return}
     }catch(e){}
   }
@@ -2878,7 +2861,7 @@ async function doLogin(){
   if(supabase){
     try{
       err.textContent='☁️ 從雲端載入中…';
-      var res=await supabase.from('mt_saves').select('*').eq('username',name).single();
+      var res=await sb.from('mt_saves').select('*').eq('username',name).maybeSingle();
       if(res.error){
         if(res.error.code==='PGRST116'||res.error.message===''){
           // Not found in cloud - will try localStorage
@@ -4185,7 +4168,7 @@ function rSet(){
     if(acc)acc.displayName=n;
     saveAccs();
     saveP();
-    if(supabase){clearTimeout(window._spT);await supabaseSave();}
+    if(sb){clearTimeout(window._spT);await supabaseSave();}
     ov.remove();rSet();toast('名稱已更新！');
   });
   var cl=document.createElement('button');cl.className='BTN B-WH BW';cl.style.cssText='padding:9px;font-size:.82rem';cl.textContent='取消';cl.addEventListener('click',function(){ov.remove()});
@@ -4250,7 +4233,7 @@ function showChgPin(){
     var acc=S.accounts.find(function(a){return a.name===S.p.name});
     if(acc)acc.pinHash=hPin(np);
     saveAccs();saveP();
-    if(supabase){clearTimeout(window._spT);supabaseSave();}
+    if(sb){clearTimeout(window._spT);supabaseSave();}
     ov.remove();toast('✅ PIN 已修改！登入時請用新 PIN');
   });
   var ccl=document.createElement('button');ccl.style.cssText='display:block;width:100%;padding:11px;background:#F7F9FA;border:1.5px solid #E0E7EF;color:#1B2631;border-radius:12px;font-size:.88rem;cursor:pointer;font-family:inherit';ccl.textContent='取消';ccl.addEventListener('click',function(){ov.remove()});
@@ -4881,7 +4864,7 @@ window.onerror=function(msg,src,line,col,err){
   return true;
 };
 // Auto-init Supabase
-initSupabase();
+if(window.supabase&&window.supabase.createClient){initSupabase();}else{window.addEventListener("load",function(){setTimeout(initSupabase,200);});}
 try{render();}catch(e){
   var errDiv=document.getElementById('app')||document.body;
   errDiv.style.cssText='padding:20px;background:#C62828;color:#fff;font-size:.82rem;white-space:pre-wrap;z-index:9999;position:fixed;inset:0;overflow:auto';
@@ -4889,6 +4872,7 @@ try{render();}catch(e){
 }
 // Pre-load OCR in background after 3 seconds
 setTimeout(function(){if(typeof Tesseract!=='undefined')initOCR()},3000);
-if('serviceWorker' in navigator)window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})});</script>
+if('serviceWorker' in navigator)window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})});
+</script>
 </body>
 </html>
