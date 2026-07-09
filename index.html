@@ -150,16 +150,16 @@ var SUPA_KEY = 'sb_publishable_FwGRDxGgM9vmXOAxwUjdAA_lT683X_o';
 // SUPA_URL and SUPA_KEY defined in config script
 // Supabase client (official SDK)
 var sb = null;
-var supabase = null;
+// Note: don't redeclare 'supabase' - it's the SDK library loaded above
 
 function initSupabase(){
   var hasConfig=SUPA_URL&&SUPA_URL.includes('.supabase.co')&&SUPA_KEY&&SUPA_KEY.startsWith('eyJ');
   if(!hasConfig)return false;
+  // Access Supabase SDK (inlined above our code)
   var lib=window.supabase;
-  if(!lib||!lib.createClient){console.warn('Supabase SDK not loaded');return false;}
+  if(!lib||typeof lib.createClient!=='function'){console.warn('Supabase SDK not loaded, lib=',lib);return false;}
   try{
     sb=lib.createClient(SUPA_URL,SUPA_KEY);
-    supabase=sb;
     hookSupabaseSave();
     console.log('✅ Supabase connected!');
     return true;
@@ -2685,7 +2685,7 @@ async function doReg(){
   if(pin!==pin2){err.textContent='PIN不一致';return}
   if(!supabase)initSupabase();
   // Check if taken
-  if(supabase){
+  if(sb){
     err.textContent='檢查帳號…';
     try{
       var chk=await sb.from('mt_saves').select('username').eq('username',name).maybeSingle();
@@ -2702,7 +2702,7 @@ async function doReg(){
   accs.push({name:name,displayName:disp,pinHash:hPin(pin)});saveAccs();
   saveP();
   // Immediately save to cloud
-  if(supabase){
+  if(sb){
     err.textContent='☁️ 同步中…';
     await supabaseSave();
   }
@@ -2747,7 +2747,7 @@ async function doLogin(){
   err.textContent='登入中…';
   var p=null;
   // Try Supabase first
-  if(supabase){
+  if(sb){
     try{
       console.log('🔍 Supabase query for:',name);
       var res=await sb.from('mt_saves').select('*').eq('username',name).maybeSingle();
@@ -2812,7 +2812,7 @@ async function doReg(){
   // Check if username taken (local + cloud)
   var localAccs=getAccs();
   if(localAccs.find(function(a){return a.name===name})){err.textContent='帳號已存在';return}
-  if(supabase){
+  if(sb){
     err.textContent='檢查帳號中…';
     try{
       var chk=await sb.from('mt_saves').select('username').eq('username',name).maybeSingle();
@@ -2825,7 +2825,7 @@ async function doReg(){
   localAccs.push({name:name,displayName:disp,pinHash:hPin(pin)});saveAccs();
   await saveP();
   // Save to cloud immediately
-  if(supabase){
+  if(sb){
     err.textContent='☁️ 同步到雲端…';
     await supabaseSave();
   }
@@ -2870,7 +2870,7 @@ async function doLogin(){
   if(!supabase)initSupabase();
   var p=null;
   // 1. Try Supabase first (cloud - works on any device)
-  if(supabase){
+  if(sb){
     try{
       err.textContent='☁️ 從雲端載入中…';
       var res=await sb.from('mt_saves').select('*').eq('username',name).maybeSingle();
@@ -2936,7 +2936,7 @@ async function doLogin(){
   S.p=p;
   await saveP();
   // Push to Supabase so other devices can find this account
-  if(supabase){
+  if(sb){
     err.textContent='☁️ 同步到雲端…';
     var saveOk=await supabaseSave();
     if(saveOk){console.log('✅ Cloud sync OK');}
