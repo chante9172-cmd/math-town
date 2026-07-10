@@ -4022,6 +4022,13 @@ function rSet(){
   // Change PIN
   var pr=mkDiv('STROW');pr.innerHTML='<div><div style="font-size:.85rem;font-weight:700">修改 PIN 密碼</div></div>';
   var pb=document.createElement('button');pb.className='BTN B-WH';pb.style.cssText='padding:6px 12px;font-size:.74rem';pb.textContent='修改';pb.addEventListener('click',showChgPin);pr.appendChild(pb);c1.appendChild(pr);
+  // Username row
+  var pur=document.createElement('div');pur.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid #F0F0F0;margin-top:4px';
+  var purL=document.createElement('div');
+  purL.innerHTML='<div style="font-size:.85rem;font-weight:700">帳號名稱</div><div style="font-size:.68rem;color:#9EA8B1">目前：'+S.p.name+'</div>';
+  var pub=document.createElement('button');pub.className='BTN B-WH';pub.style.cssText='padding:6px 12px;font-size:.74rem';pub.textContent='修改';
+  pub.addEventListener('click',showChgUsername);
+  pur.appendChild(purL);pur.appendChild(pub);c1.appendChild(pur);
   // HW toggle
 
   pg.appendChild(c1);
