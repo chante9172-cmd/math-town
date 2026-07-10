@@ -4042,36 +4042,154 @@ function rSet(){
   var c3=mkDiv('CARD');c3.innerHTML='<div class="BDR"><span style="color:#4A5568">帳號</span><span style="font-weight:700">@'+p.name+'</span></div><div class="BDR"><span style="color:#4A5568">等級</span><span style="font-weight:700">Lv.'+p.level+'</span></div><div class="BDR"><span style="color:#4A5568">登入天數</span><span style="font-weight:700">'+(p.loginDays||1)+'天</span></div>';pg.appendChild(c3);
   // Developer panel
   var devCard=mkDiv('CARD');devCard.style.cssText='background:#1B2631;border-color:#2E4057';
-  devCard.innerHTML='<div style="font-size:.78rem;font-weight:700;color:#FFD700;margin-bottom:10px">🛠 開發者工具</div>';
+  var devUnlocked=false;
+  var devHeader=document.createElement('div');devHeader.style.cssText='display:flex;align-items:center;justify-content:space-between';
+  devHeader.innerHTML='<div style="font-size:.78rem;font-weight:700;color:#FFD700">🛠 開發者工具</div>';
+  var devLockBtn=document.createElement('button');devLockBtn.style.cssText='background:#F59E0B;border:none;border-radius:8px;padding:4px 10px;font-size:.72rem;font-weight:700;cursor:pointer;font-family:inherit';devLockBtn.textContent='🔒 解鎖';
+  var devBody=document.createElement('div');devBody.style.display='none';
+  devLockBtn.addEventListener('click',function(){
+    if(devUnlocked){devBody.style.display='none';devUnlocked=false;devLockBtn.textContent='🔒 解鎖';return;}
+    // Custom password prompt
+    var pov=document.createElement('div');pov.className='POPUP';
+    var pbox=document.createElement('div');pbox.className='PBX';pbox.style.textAlign='center';
+    pbox.innerHTML='<div style="font-weight:700;margin-bottom:10px">🔒 開發者密碼</div>';
+    var pinp=document.createElement('input');pinp.type='password';pinp.className='INP';pinp.placeholder='輸入密碼';pinp.style.textAlign='center';
+    var pok=document.createElement('button');pok.className='BTN B-GR BW';pok.style.padding='11px';pok.textContent='確認';
+    pok.addEventListener('click',function(){
+      if(pinp.value==='6110752'){devBody.style.display='block';devUnlocked=true;devLockBtn.textContent='🔓 鎖定';pov.remove();}
+      else{toast('密碼錯誤');}
+    });
+    pinp.addEventListener('keydown',function(e){if(e.key==='Enter')pok.click();});
+    var pcl=document.createElement('button');pcl.className='BTN B-WH BW';pcl.style.cssText='padding:9px;font-size:.82rem';pcl.textContent='取消';pcl.addEventListener('click',function(){pov.remove()});
+    pbox.appendChild(pinp);pbox.appendChild(pok);pbox.appendChild(pcl);pov.appendChild(pbox);
+    pov.addEventListener('click',function(e){if(e.target===pov)pov.remove()});document.body.appendChild(pov);setTimeout(function(){pinp.focus();},100);
+  });
+  devHeader.appendChild(devLockBtn);devCard.appendChild(devHeader);devCard.appendChild(devBody);
+  devBody.innerHTML='';
+  var _dc=devBody;
+  // ── 數值調整 ──
+  var devSec1=document.createElement('div');devSec1.style.cssText='font-size:.68rem;color:#F59E0B;font-weight:700;margin-bottom:6px;margin-top:4px';devSec1.textContent='📊 數值調整';_dc.appendChild(devSec1);
   var devFields=[
     {label:'等級',key:'level',type:'number',min:1,max:99},
-    {label:'金幣',key:'coins',type:'number',min:0,max:999999},
-    {label:'經驗值',key:'exp',type:'number',min:0,max:99999},
+    {label:'金幣',key:'coins',type:'number',min:0,max:9999999},
+    {label:'經驗值',key:'exp',type:'number',min:0,max:999999},
     {label:'連登天數',key:'loginDays',type:'number',min:0,max:9999},
+    {label:'倉庫容量',key:'warehouseCap',type:'number',min:50,max:9999},
+    {label:'地圖大小',key:'landSize',type:'number',min:10,max:50},
   ];
   devFields.forEach(function(f){
-    var row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:8px';
-    var lbl=document.createElement('div');lbl.style.cssText='color:#9EA8B1;font-size:.75rem;width:60px;flex-shrink:0';lbl.textContent=f.label;
+    var row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px;margin-bottom:6px';
+    var lbl=document.createElement('div');lbl.style.cssText='color:#9EA8B1;font-size:.72rem;width:60px;flex-shrink:0';lbl.textContent=f.label;
     var inp=document.createElement('input');inp.type=f.type;inp.min=f.min;inp.max=f.max;
     inp.value=S.p[f.key]||0;
-    inp.style.cssText='flex:1;border:1px solid #2E4057;border-radius:8px;padding:6px 10px;background:#0D1B2A;color:#fff;font-size:.85rem;font-family:inherit';
-    var btn=document.createElement('button');btn.style.cssText='padding:6px 12px;background:#F59E0B;border:none;border-radius:8px;color:#000;font-weight:700;font-size:.75rem;cursor:pointer;font-family:inherit;flex-shrink:0';
+    inp.style.cssText='flex:1;border:1px solid #2E4057;border-radius:8px;padding:5px 8px;background:#0D1B2A;color:#fff;font-size:.82rem;font-family:inherit';
+    var btn=document.createElement('button');btn.style.cssText='padding:5px 10px;background:#F59E0B;border:none;border-radius:8px;color:#000;font-weight:700;font-size:.7rem;cursor:pointer;font-family:inherit;flex-shrink:0';
     btn.textContent='套用';
     (function(field,input){
       btn.addEventListener('click',function(){
         var val=parseInt(input.value)||0;
         S.p[field.key]=Math.max(field.min,Math.min(field.max,val));
-        if(field.key==='level')S.p.exp=S.p.exp||0;
-        saveP();render();toast('✅ '+field.label+'已改為 '+S.p[field.key]);
+        saveP();render();toast('✅ '+field.label+' → '+S.p[field.key]);
       });
     })(f,inp);
-    row.appendChild(lbl);row.appendChild(inp);row.appendChild(btn);
-    devCard.appendChild(row);
+    row.appendChild(lbl);row.appendChild(inp);row.appendChild(btn);_dc.appendChild(row);
   });
-  // Reset daily quest
-  var resetBtn=document.createElement('button');resetBtn.className='BTN B-RD BW';resetBtn.style.cssText='padding:8px;font-size:.75rem;margin-top:4px';resetBtn.textContent='🔄 重置每日任務';
-  resetBtn.addEventListener('click',function(){S.p.dailyQuest=null;S.p.lastDay='';saveP();render();toast('已重置！');});
-  devCard.appendChild(resetBtn);
+
+  // ── 物品給予 ──
+  var devSec2=document.createElement('div');devSec2.style.cssText='font-size:.68rem;color:#F59E0B;font-weight:700;margin:10px 0 6px';devSec2.textContent='🎁 物品給予';_dc.appendChild(devSec2);
+  var giveRow=document.createElement('div');giveRow.style.cssText='display:flex;gap:6px;flex-wrap:wrap';
+  var gdSel=document.createElement('select');gdSel.style.cssText='flex:1;background:#0D1B2A;color:#fff;border:1px solid #2E4057;border-radius:8px;padding:5px;font-size:.72rem;font-family:inherit';
+  Object.keys(GD).forEach(function(id){var g=GD[id];var o=document.createElement('option');o.value=id;o.textContent=g.e+' '+g.n;gdSel.appendChild(o);});
+  var giveAmt=document.createElement('input');giveAmt.type='number';giveAmt.value=10;giveAmt.min=1;giveAmt.max=999;
+  giveAmt.style.cssText='width:60px;background:#0D1B2A;color:#fff;border:1px solid #2E4057;border-radius:8px;padding:5px;font-size:.82rem;font-family:inherit';
+  var giveBtn=document.createElement('button');giveBtn.style.cssText='padding:5px 10px;background:#4CAF50;border:none;border-radius:8px;color:#fff;font-weight:700;font-size:.7rem;cursor:pointer;font-family:inherit';
+  giveBtn.textContent='給予';
+  giveBtn.addEventListener('click',function(){
+    var id=gdSel.value,amt=parseInt(giveAmt.value)||1;
+    if(!GD[id])return;
+    S.p.inv[id]=(S.p.inv[id]||0)+amt;saveP();
+    toast('✅ 給予 '+GD[id].e+GD[id].n+' ×'+amt);
+  });
+  giveRow.appendChild(gdSel);giveRow.appendChild(giveAmt);giveRow.appendChild(giveBtn);_dc.appendChild(giveRow);
+
+  // ── 建築給予 ──
+  var devSec3=document.createElement('div');devSec3.style.cssText='font-size:.68rem;color:#F59E0B;font-weight:700;margin:10px 0 6px';devSec3.textContent='🏗 建築給予';_dc.appendChild(devSec3);
+  var bldgRow=document.createElement('div');bldgRow.style.cssText='display:flex;gap:6px;flex-wrap:wrap';
+  var bldgSel=document.createElement('select');bldgSel.style.cssText='flex:1;background:#0D1B2A;color:#fff;border:1px solid #2E4057;border-radius:8px;padding:5px;font-size:.72rem;font-family:inherit';
+  Object.keys(IT).filter(function(id){return !IT[id].noShop||id==='WH';}).forEach(function(id){var b=IT[id];var o=document.createElement('option');o.value=id;o.textContent=b.e+' '+b.n;bldgSel.appendChild(o);});
+  var bldgBtn=document.createElement('button');bldgBtn.style.cssText='padding:5px 10px;background:#4CAF50;border:none;border-radius:8px;color:#fff;font-weight:700;font-size:.7rem;cursor:pointer;font-family:inherit';
+  bldgBtn.textContent='加入庫存';
+  bldgBtn.addEventListener('click',function(){
+    var id=bldgSel.value;
+    S.p.bldgInv[id]=(S.p.bldgInv[id]||0)+1;saveP();
+    toast('✅ 取得 '+IT[id].e+IT[id].n);
+  });
+  bldgRow.appendChild(bldgSel);bldgRow.appendChild(bldgBtn);_dc.appendChild(bldgRow);
+
+  // ── 快速操作 ──
+  var devSec4=document.createElement('div');devSec4.style.cssText='font-size:.68rem;color:#F59E0B;font-weight:700;margin:10px 0 6px';devSec4.textContent='⚡ 快速操作';_dc.appendChild(devSec4);
+  var devBtns=[
+    {label:'⏩ 工廠農場全部完成',fn:function(){
+      var now=Date.now();
+      Object.values(S.p.farms||{}).forEach(function(f){if(f.crop)f.done=true;});
+      Object.values(S.p.factories||{}).forEach(function(fac){if(fac.queue&&fac.queue.length>0)fac.queue.forEach(function(j){j.done=true;j.endTime=now-1;});});
+      Object.values(S.p.animalSlots||{}).forEach(function(a){a.ready=true;});
+      saveP();render();toast('✅ 全部完成！');
+    }},
+    {label:'🔓 解鎖所有建築',fn:function(){
+      Object.keys(IT).forEach(function(id){var b=IT[id];if(b.buy&&!b.noShop)S.p.bldgInv[id]=(S.p.bldgInv[id]||0)+2;});
+      saveP();toast('✅ 所有建築加入庫存');
+    }},
+    {label:'🎒 填滿所有農作物',fn:function(){
+      Object.keys(GD).forEach(function(id){S.p.inv[id]=(S.p.inv[id]||0)+20;});
+      saveP();toast('✅ 所有物品 ×20');
+    }},
+    {label:'🗺 擴大到最大地圖',fn:function(){
+      S.p.landSize=50;while(S.p.town.length<MSZ*MSZ)S.p.town.push(null);
+      saveP();render();toast('✅ 地圖已最大化');
+    }},
+    {label:'🌈 觸發彩虹事件',fn:function(){
+      S._rainbowEnd=Date.now()+900000;toast('🌈 彩虹已觸發！15分鐘答題×1.5');
+    }},
+    {label:'🎪 觸發節日事件',fn:function(){
+      S._festivalOn=true;setTimeout(function(){S._festivalOn=false;},120000);
+      toast('🎪 節日慶典！訂單×2（2分鐘）');
+    }},
+    {label:'🔄 重置每日任務',fn:function(){S.p.dailyQuest=null;S.p.lastDay='';saveP();render();toast('✅ 每日任務重置');}},
+    {label:'📦 清空倉庫物品',fn:function(){S.p.inv={};saveP();toast('✅ 倉庫已清空');}},
+    {label:'🏚 清空小鎮建築',fn:function(){
+      S.p.town=Array(MSZ*MSZ).fill(null);S.p.farms={};S.p.factories={};S.p.animalSlots={};S.p.collect={};
+      saveP();render();toast('✅ 小鎮已清空');
+    }},
+    {label:'🗑 重置帳號資料',fn:function(){
+      if(!confirm2('確定要重置所有資料？此操作無法復原！',function(){
+        var name=S.p.name,pin=S.p.pin,disp=S.p.displayName;
+        var fresh=newP(null,null,disp);fresh.name=name;fresh.pin=pin;fresh.displayName=disp;
+        S.p=fresh;saveP();render();toast('✅ 資料已重置');
+      })){}
+    }},
+  ];
+  devBtns.forEach(function(b){
+    var btn=document.createElement('button');
+    btn.style.cssText='display:block;width:100%;padding:8px;margin-bottom:5px;background:#1B2631;border:1px solid #2E4057;border-radius:8px;color:#fff;font-size:.75rem;cursor:pointer;font-family:inherit;text-align:left';
+    btn.textContent=b.label;
+    btn.addEventListener('click',b.fn);
+    _dc.appendChild(btn);
+  });
+
+  // Helper: custom confirm
+  function confirm2(msg,cb){
+    var cov=document.createElement('div');cov.className='POPUP';
+    var cbox=document.createElement('div');cbox.className='PBX';cbox.style.textAlign='center';
+    cbox.innerHTML='<div style="font-size:1.5rem;margin-bottom:8px">⚠️</div><div style="font-weight:700;margin-bottom:14px">'+msg+'</div>';
+    var yes=document.createElement('button');yes.className='BTN B-RD BW';yes.style.padding='11px';yes.textContent='確定';
+    yes.addEventListener('click',function(){cov.remove();cb();});
+    var no=document.createElement('button');no.className='BTN B-WH BW';no.style.cssText='padding:9px;font-size:.82rem';no.textContent='取消';
+    no.addEventListener('click',function(){cov.remove();});
+    cbox.appendChild(yes);cbox.appendChild(no);cov.appendChild(cbox);
+    cov.addEventListener('click',function(e){if(e.target===cov)cov.remove();});
+    document.body.appendChild(cov);return false;
+  }
   pg.appendChild(devCard);
   // Sync status (auto, no button needed)
   var syncStatus=mkDiv('CARD');
