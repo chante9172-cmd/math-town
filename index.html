@@ -2747,38 +2747,7 @@ async function doLogin(){
   S.p=p;saveP();startTick();go('home');
 }
 
-async function doReg(){
-  var name=(document.getElementById('rn')?.value||'').trim().toLowerCase();
-  var disp=(document.getElementById('rd')?.value||'').trim();
-  var pin=(document.getElementById('rp')?.value||'').trim();
-  var pin2=(document.getElementById('rp2')?.value||'').trim();
-  var err=document.getElementById('rerr');
-  if(!name||name.length<2){err.textContent='帳號至少2字';return}
-  if(!disp){err.textContent='請輸入顯示名稱';return}
-  if(!/^\d{4}$/.test(pin)){err.textContent='PIN需為4位數字';return}
-  if(pin!==pin2){err.textContent='PIN不一致';return}
-  // Check if username taken (local + cloud)
-  var localAccs=getAccs();
-  if(localAccs.find(function(a){return a.name===name})){err.textContent='帳號已存在';return}
-  if(supabase){
-    err.textContent='檢查帳號中…';
-    try{
-      var chk=await sb.from('mt_saves').select('username').eq('username',name).single();
-      if(chk.data){err.textContent='帳號已被使用，請換一個';return}
-    }catch(e){}
-  }
-  err.textContent='建立中…';
-  var p=newP(name,pin,disp);
-  S.p=p;
-  localAccs.push({name:name,displayName:disp,pinHash:hPin(pin)});saveAccs();
-  await saveP();
-  // Save to cloud immediately
-  if(supabase){
-    err.textContent='☁️ 同步到雲端…';
-    await supabaseSave();
-  }
-  genOrders();startTick();go('home');
-}
+
 
 function rLogin(){
   S.accounts=getAccs();
@@ -2807,91 +2776,7 @@ function rLogin(){
   form.appendChild(b1);form.appendChild(b2);
   wrap.appendChild(form);a.appendChild(wrap);
 }
-async function doLogin(){
-  var name=(document.getElementById('ln')?.value||'').trim().toLowerCase();
-  var pin=(document.getElementById('lp')?.value||'').trim();
-  var err=document.getElementById('lerr');
-  if(!name){err.textContent='請輸入帳號';return}
-  if(!/^\d{4}$/.test(pin)){err.textContent='PIN需為4位數字';return}
-  err.textContent='登入中…';
-  // Ensure Supabase is initialized
-  if(!supabase)initSupabase();
-  var p=null;
-  // 1. Try Supabase first (cloud - works on any device)
-  if(supabase){
-    try{
-      err.textContent='☁️ 從雲端載入中…';
-      var res=await sb.from('mt_saves').select('*').eq('username',name).single();
-      if(res.error){
-        if(res.error.code==='PGRST116'||res.error.message===''){
-          // Not found in cloud - will try localStorage
-        } else {
-          err.textContent='雲端錯誤：'+res.error.message;
-          console.error('Supabase error:',JSON.stringify(res.error));
-        }
-      } else if(res.data&&res.data.save_code){
-        var cloud=importSaveCode(res.data.save_code);
-        if(cloud&&cloud.pin===hPin(pin)){p=cloud;p.name=name;}
-        else if(cloud){err.textContent='PIN錯誤';return;}
-        else{err.textContent='存檔損壞，請重試';}
-      }
-    }catch(e){
-      console.error('Supabase login error:',e.message,e);
-      err.textContent='連線失敗（'+e.message+'）';
-    }
-  }
-  // 2. Fallback: localStorage
-  if(!p){
-    var pd=await loadPD(name);
-    if(pd&&pd.pin===hPin(pin)){
-      p=pd;
-    }
-    else if(pd){err.textContent='PIN錯誤';return}
-  }
-  if(!p){
-    err.textContent='找不到帳號！請先在這台裝置登入過，或重新註冊';
-    return;
-  }
-  // Set defaults
-  ['farms','factories','animalSlots','bldgInv','collect','mgDone'].forEach(function(k){if(!p[k])p[k]={}});
-  if(!p.av)p.av='🧒';
-  if(!p.displayName)p.displayName=p.n||name;
-  if(!p.name)p.name=name;
-  while(p.town&&p.town.length<MSZ*MSZ)p.town.push(null);
-  if(!p.town){p.town=Array(MSZ*MSZ).fill(null);}
-  if(!p.orders||p.orders.length<1)genOrders();
-  // Daily login bonus
-  if(p.lastDay!==today()){p.coins=(p.coins||0)+20;p.totalCE=(p.totalCE||0)+20;p.lastDay=today();p.loginDays=(p.loginDays||0)+1;}
-  // Daily quest
-  if(!p.dailyQuest||p.dailyQuest.day!==today()){
-    var quests=[
-      {type:'quiz',desc:'完成一次答題',reward:50,done:false},
-      {type:'order',desc:'完成2個訂單',target:2,progress:0,reward:80,done:false},
-      {type:'harvest',desc:'收穫3次農作物',target:3,progress:0,reward:60,done:false},
-      {type:'coins',desc:'賺取100金幣',target:100,progress:0,reward:40,done:false},
-    ];
-    p.dailyQuest={day:today(),quest:quests[Math.floor(Math.random()*quests.length)],done:false};
-  }
-  // Ensure WH on map
-  if(!p.town.some(function(t){return t==='WH';})){
-    for(var wi=0;wi<p.town.length;wi++){if(!p.town[wi]){p.town[wi]='WH';break;}}
-  }
-  // Save to local accounts list
-  var accs=getAccs();
-  if(!accs.find(function(a){return a.name===name;})){
-    accs.push({name:name,displayName:p.displayName,pinHash:hPin(pin)});saveAccs();
-  }
-  S.p=p;
-  await saveP();
-  // Push to Supabase so other devices can find this account
-  if(supabase){
-    err.textContent='☁️ 同步到雲端…';
-    var saveOk=await supabaseSave();
-    if(saveOk){console.log('✅ Cloud sync OK');}
-    else{console.warn('⚠️ Cloud sync failed');}
-  }
-  startTick();go('home');
-}
+
 
 function rHome(){
   var p=S.p;
@@ -4175,6 +4060,50 @@ function rSet(){
   var bk=document.createElement('button');bk.className='BTN B-WH BW';bk.style.cssText='padding:10px;font-size:.82rem';bk.textContent='← 返回';bk.addEventListener('click',function(){go('home')});pg.appendChild(bk);
   a.appendChild(pg);a.appendChild(bnH('home'));
 }
+async function showChgUsername(){
+  var ov=document.createElement('div');ov.className='POPUP';
+  var box=document.createElement('div');box.className='PBX';
+  box.innerHTML='<div style="font-weight:700;margin-bottom:4px">修改帳號名稱</div><div style="font-size:.7rem;color:#9EA8B1;margin-bottom:10px">登入時使用的帳號，改完需重新登入</div>';
+  var inp=document.createElement('input');inp.className='INP';inp.value=S.p.name;inp.maxLength=20;inp.placeholder='新帳號名稱';
+  var msg=document.createElement('div');msg.style.cssText='font-size:.72rem;color:#EF4444;margin-top:6px;min-height:16px';
+  var ok=document.createElement('button');ok.className='BTN B-GR BW';ok.style.padding='11px';ok.textContent='確認修改';
+  ok.addEventListener('click',async function(){
+    var newName=inp.value.trim().toLowerCase();
+    if(!newName||newName.length<2){msg.textContent='帳號至少2字';return}
+    if(newName===S.p.name){msg.textContent='和現在一樣';return}
+    ok.disabled=true;ok.textContent='檢查中…';
+    // Check if taken
+    try{
+      var{data:existing}=await sb.from('mt_saves').select('username').eq('username',newName).maybeSingle();
+      if(existing){msg.textContent='❌ 此帳號已被使用';ok.disabled=false;ok.textContent='確認修改';return}
+    }catch(e){}
+    // Copy data to new username
+    ok.textContent='更新中…';
+    var oldName=S.p.name;
+    S.p.name=newName;
+    // Update localStorage
+    try{localStorage.removeItem('mt_p_'+oldName);}catch(e){}
+    saveP();
+    // Update Supabase: insert new, delete old
+    try{
+      await supabaseSave();
+      await sb.from('mt_saves').delete().eq('username',oldName);
+    }catch(e){console.warn('Username rename err:',e)}
+    // Update accounts list
+    var accs=getAccs();
+    var acc=accs.find(function(a){return a.name===oldName});
+    if(acc)acc.name=newName;
+    saveAccs();
+    ov.remove();
+    toast('✅ 帳號已改為：'+newName);
+    rSet();
+  });
+  var cl=document.createElement('button');cl.className='BTN B-WH BW';cl.style.cssText='padding:9px;font-size:.82rem';cl.textContent='取消';cl.addEventListener('click',function(){ov.remove()});
+  box.appendChild(inp);box.appendChild(msg);box.appendChild(ok);box.appendChild(cl);
+  ov.appendChild(box);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove()});
+  document.body.appendChild(ov);
+}
+
 function showChgPin(){
   var ov=document.createElement('div');ov.className='POPUP';
   var box=mkDiv('PBX');box.innerHTML='<div style="font-weight:700;font-size:.95rem;margin-bottom:14px">🔑 修改 PIN 密碼</div>';
