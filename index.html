@@ -236,9 +236,9 @@ indigo: {n:'靛藍',  e:'💙',time:10800,gives:'indigo', amt:3, lv:9, seedCost:
 };
 var AN={
 chicken:{n:'雞',e:'🐔',feed:'feed',feedAmt:1,time:180,gives:'egg',giveAmt:3},
-cow:{n:'牛',e:'🐄',feed:'feed',feedAmt:2,time:300,gives:'milk',giveAmt:2},
-sheep:{n:'羊',e:'🐑',feed:'feed',feedAmt:2,time:480,gives:'wool',giveAmt:2},
-pig:{n:'豬',e:'🐷',feed:'feed',feedAmt:2,time:600,gives:'truffle',giveAmt:1}
+cow:{n:'牛',e:'🐄',feed:'cow_feed',feedAmt:2,time:300,gives:'milk',giveAmt:2},
+sheep:{n:'羊',e:'🐑',feed:'sheep_feed',feedAmt:2,time:480,gives:'wool',giveAmt:2},
+pig:{n:'豬',e:'🐷',feed:'pig_feed',feedAmt:2,time:600,gives:'truffle',giveAmt:1}
 };
 var GD={
 wheat_g:{n:'小麥',e:'🌾',sell:2},corn_g:{n:'玉米',e:'🌽',sell:3},
@@ -251,7 +251,9 @@ egg:{n:'雞蛋',e:'🥚',sell:6},milk:{n:'牛奶',e:'🥛',sell:8},
 cheese:{n:'起司',e:'🧀',sell:20},butter:{n:'奶油',e:'🧈',sell:15},
 wool:{n:'羊毛',e:'🧶',sell:10},fabric:{n:'布料',e:'🪡',sell:18},sweater:{n:'毛衣',e:'🧥',sell:35},
 truffle:{n:'松露',e:'🍄',sell:30},
-cow_feed:{n:'牛飼料',e:'🌽',sell:8},sugar:{n:'砂糖',e:'🍬',sell:6},
+cow_feed:{n:'牛飼料',e:'🌽',sell:8},
+sheep_feed:{n:'羊飼料',e:'🌾',sell:6},
+pig_feed:{n:'豬飼料',e:'🥕',sell:6},sugar:{n:'砂糖',e:'🍬',sell:6},
 pie:{n:'南瓜派',e:'🥧',sell:30},cookie:{n:'餅乾',e:'🍪',sell:14},
 silk:{n:'絲綢',e:'🧣',sell:40},indigo_dye:{n:'靛藍染料',e:'💙',sell:15},
 dyed_fabric:{n:'染色布料',e:'🎨',sell:25}
@@ -262,7 +264,10 @@ MILL:[
   {out:'feed',    amt:2,inp:[{g:'corn_g', a:2}],time:1500, n:'雞飼料（玉米）', lv:1},
   {out:'cow_feed',amt:1,inp:[{g:'corn_g', a:3}],time:2400, n:'牛飼料', lv:3},
   {out:'flour',   amt:1,inp:[{g:'wheat_g',a:3}],time:1800, n:'麵粉', lv:2,needs:[{id:'wheat_g',amt:3}]},
-  {out:'sugar',   amt:2,inp:[{g:'sugarcane',a:3}],time:1800,n:'砂糖', lv:7,needs:[{id:'sugarcane',amt:3}]}
+  {out:'sugar',   amt:2,inp:[{g:'sugarcane',a:3}],time:1800,n:'砂糖', lv:7,needs:[{id:'sugarcane',amt:3}]},
+  {out:'sheep_feed',amt:2,inp:[{g:'wheat_g',a:2}],time:1200,n:'羊飼料', lv:1,needs:[{id:'wheat_g',amt:2}]},
+  {out:'pig_feed',  amt:2,inp:[{g:'carrot',a:2}], time:1200,n:'豬飼料', lv:1,needs:[{id:'carrot',amt:2}]},
+  {out:'pig_feed',  amt:2,inp:[{g:'potato',a:2}], time:1200,n:'豬飼料（馬鈴薯）', lv:1,needs:[{id:'potato',amt:2}]}
 ],
 BAKE:[
   {out:'bread',   amt:1,inp:[{g:'flour',a:1}],         time:1800, n:'麵包', lv:1,needs:[{id:'flour',amt:1}]},
@@ -1052,7 +1057,7 @@ function canFul(ord){return ord.items.every(function(it){return hasG(it.g,it.a)}
 function fulOrder(oi){
   var ord=S.p.orders[oi];if(!ord||!canFul(ord))return;
   ord.items.forEach(function(it){remG(it.g,it.a)});
-  var festBonus=S._festivalOn?2:1;var actualReward=Math.round(ord.reward*festBonus);S.p.coins+=actualReward;S.p.totalCE=(S.p.totalCE||0)+actualReward;S.p.exp+=20;checkLv();
+  var festBonus=S._festivalOn?2:1;var orderCheat=S._orderMult||1;var actualReward=Math.round(ord.reward*festBonus*orderCheat);S.p.coins+=actualReward;S.p.totalCE=(S.p.totalCE||0)+actualReward;S.p.exp+=20;checkLv();
   S.p.orders.splice(oi,1);if(S.p.orders.length<2)genOrders();
   S.p.totalOrders=(S.p.totalOrders||0)+1;
   checkAchievements('orders',1);checkDailyQuest('order',1);updateWeekChallenge('orders',1);
@@ -3129,7 +3134,7 @@ function showCropPicker(idx){
 function aClick(idx,bd){
   var ani=AN[bd.animal],a=S.p.animalSlots[idx]||(S.p.animalSlots[idx]={animal:bd.animal,fed:false,ready:false});
   if(a.ready){var g=GD[ani.gives];addG(ani.gives,ani.giveAmt);toast('收集 '+(g?g.e:'')+ani.giveAmt);a.ready=false;a.fed=false;a.readyTime=0;saveP();rTown()}
-  else if(!a.fed){if(!hasG(ani.feed,ani.feedAmt)){toast('需要 '+ani.feedAmt+'x 飼料');return}remG(ani.feed,ani.feedAmt);a.fed=true;a.readyTime=Date.now()+ani.time*1000;saveP();toast('餵食！');rTown()}
+  else if(!a.fed){if(!hasG(ani.feed,ani.feedAmt)){toast('需要 '+(GD[ani.feed]?GD[ani.feed].e+GD[ani.feed].n:ani.feed)+' ×'+ani.feedAmt);return}remG(ani.feed,ani.feedAmt);a.fed=true;a.readyTime=Date.now()+ani.time*1000;saveP();toast('餵食！');rTown()}
   else toast('還需 '+fmt(Math.max(0,Math.round((a.readyTime-Date.now())/1000))))
 }
 function showBuildingPopup(idx,bd){
@@ -4168,6 +4173,68 @@ function rSet(){
         S.p=fresh;saveP();render();toast('✅ 資料已重置');
       })){}
     }},
+    // ── 帳號類 ──
+    {label:'🏆 解鎖所有成就',fn:function(){
+      ACHIEVEMENTS.forEach(function(a){
+        if(!S.p.achievements[a.id]){S.p.achievements[a.id]=true;S.p.coins+=15;}
+      });
+      saveP();render();toast('✅ 所有成就已解鎖！');
+    }},
+    {label:'🗑 刪除此帳號（雲端）',fn:function(){
+      confirm2('確定要從雲端刪除帳號「'+S.p.name+'」？無法復原！',async function(){
+        try{await sb.from('mt_saves').delete().eq('username',S.p.name);}catch(e){}
+        try{localStorage.removeItem('mt_p_'+S.p.name);}catch(e){}
+        S.p=null;go('splash');toast('✅ 帳號已刪除');
+      });
+    }},
+    {label:'📋 匯出存檔碼',fn:function(){
+      var code=exportSaveCode();
+      var ov=document.createElement('div');ov.className='POPUP';
+      var box=document.createElement('div');box.className='PBX';
+      box.innerHTML='<div style="font-weight:700;margin-bottom:8px">📋 存檔碼</div>';
+      var ta=document.createElement('textarea');ta.readOnly=true;
+      ta.style.cssText='width:100%;height:80px;border-radius:8px;padding:6px;font-size:.6rem;font-family:monospace;resize:none;border:1px solid #E0E0E0';
+      ta.value=code;
+      var btn=document.createElement('button');btn.className='BTN B-GR BW';btn.style.padding='10px';btn.textContent='📋 複製';
+      btn.addEventListener('click',function(){navigator.clipboard&&navigator.clipboard.writeText(code).then(function(){toast('已複製！');});});
+      var cl=document.createElement('button');cl.className='BTN B-WH BW';cl.style.cssText='padding:8px;font-size:.82rem';cl.textContent='關閉';cl.addEventListener('click',function(){ov.remove();});
+      box.appendChild(ta);box.appendChild(btn);box.appendChild(cl);ov.appendChild(box);
+      ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});document.body.appendChild(ov);
+    }},
+    {label:'📊 查看帳號統計',fn:function(){
+      var p=S.p;
+      var ov=document.createElement('div');ov.className='POPUP';
+      var box=document.createElement('div');box.className='PBX';
+      box.innerHTML='<div style="font-weight:700;margin-bottom:10px">📊 帳號統計</div>'+
+        '<div style="font-size:.8rem;line-height:2">'+
+        '帳號：'+p.name+'<br>'+
+        '等級：Lv.'+p.level+'<br>'+
+        '歷史累計金幣：🪙'+((p.totalCE||0).toLocaleString())+'<br>'+
+        '答題總題數：'+((p.totalA||0).toLocaleString())+'<br>'+
+        '完成訂單：'+((p.totalOrders||0).toLocaleString())+'<br>'+
+        '連續最高答對：'+((p.bestStreak||0).toLocaleString())+'<br>'+
+        '連登天數：'+(p.loginDays||0)+'天<br>'+
+        '成就解鎖：'+Object.keys(p.achievements||{}).length+'/'+ACHIEVEMENTS.length+
+        '</div>';
+      var cl=document.createElement('button');cl.className='BTN B-WH BW';cl.style.padding='10px';cl.textContent='關閉';cl.addEventListener('click',function(){ov.remove();});
+      box.appendChild(cl);ov.appendChild(box);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});document.body.appendChild(ov);
+    }},
+    // ── 作弊類 ──
+    {label:'⏰ 無限答題時間（本次登入）',fn:function(){
+      S._infiniteTime=!S._infiniteTime;
+      toast(S._infiniteTime?'✅ 無限時間開啟！':'⏰ 無限時間關閉');
+    }},
+    {label:'✅ 答題自動全對（本次登入）',fn:function(){
+      S._autoCorrect=!S._autoCorrect;
+      toast(S._autoCorrect?'✅ 自動全對開啟！':'❌ 自動全對關閉');
+    }},
+    {label:'💰 訂單獎勵×10（本次登入）',fn:function(){
+      S._orderMult=S._orderMult===10?1:10;
+      toast(S._orderMult===10?'✅ 訂單獎勵×10！':'訂單獎勵恢復正常');
+    }},
+    {label:'🎯 生成新訂單',fn:function(){
+      genOrders();saveP();render();toast('✅ 訂單已重新生成！');
+    }},
   ];
   devBtns.forEach(function(b){
     var btn=document.createElement('button');
@@ -4305,7 +4372,8 @@ function exportSaveCode(){
     achievements:p.achievements,totalCE:p.totalCE,totalA:p.totalA,
     totalC:p.totalC,loginDays:p.loginDays,settings:p.settings,
     warehouseCap:p.warehouseCap,_everHad:p._everHad,av:p.av,pin:p.pin,
-    landSize:p.landSize,totalOrders:p.totalOrders,bestStreak:p.bestStreak
+    landSize:p.landSize,totalOrders:p.totalOrders,bestStreak:p.bestStreak,
+    lastDay:p.lastDay,dailyQuest:p.dailyQuest
   };
   try{return btoa(unescape(encodeURIComponent(JSON.stringify(lite))))}
   catch(e){return null}
