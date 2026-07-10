@@ -148,7 +148,7 @@ async function supabaseSave(){
   var uname=(S.p.name||S.p.displayName||'').toLowerCase().replace(/[^a-z0-9_]/g,'_');
   if(!uname)return false;
   try{
-    var res=await supabase.from('mt_saves').upsert({
+    var res=await sb.from('mt_saves').upsert({
       username:uname,
       display_name:S.p.displayName||S.p.name,
       save_code:code,
@@ -167,7 +167,7 @@ async function supabaseSave(){
 async function supabaseLoad(username){
   if(!supabase)return null;
   try{
-    var res=await supabase.from('mt_saves').select('*').eq('username',username.toLowerCase()).single();
+    var res=await sb.from('mt_saves').select('*').eq('username',username.toLowerCase()).single();
     if(res.error||!res.data)return null;
     return res.data.save_code;
   }catch(e){return null}
@@ -2763,7 +2763,7 @@ async function doReg(){
   if(supabase){
     err.textContent='檢查帳號中…';
     try{
-      var chk=await supabase.from('mt_saves').select('username').eq('username',name).single();
+      var chk=await sb.from('mt_saves').select('username').eq('username',name).single();
       if(chk.data){err.textContent='帳號已被使用，請換一個';return}
     }catch(e){}
   }
@@ -2821,7 +2821,7 @@ async function doLogin(){
   if(supabase){
     try{
       err.textContent='☁️ 從雲端載入中…';
-      var res=await supabase.from('mt_saves').select('*').eq('username',name).single();
+      var res=await sb.from('mt_saves').select('*').eq('username',name).single();
       if(res.error){
         if(res.error.code==='PGRST116'||res.error.message===''){
           // Not found in cloud - will try localStorage
