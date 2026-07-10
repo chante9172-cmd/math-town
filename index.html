@@ -145,7 +145,7 @@ async function supabaseSave(){
   if(!supabase||!S.p)return false;
   var code=exportSaveCode();
   if(!code)return false;
-  var uname=(S.p.name||S.p.displayName||'').toLowerCase().replace(/[^a-z0-9_]/g,'_');
+  var uname=(S.p.name||S.p.displayName||'').trim().toLowerCase();
   if(!uname)return false;
   try{
     var res=await sb.from('mt_saves').upsert({
@@ -4229,7 +4229,7 @@ function importSaveCode(code){
     var data=JSON.parse(decodeURIComponent(escape(atob(code.trim()))));
     if(!data.n)throw new Error('invalid');
     // Ensure name field exists (sync code stores displayName as .n)
-    if(!data.name)data.name=data.n.toLowerCase().replace(/[^a-z0-9]/g,'_');
+    if(!data.name)data.name=data.n.toLowerCase();
     if(!data.displayName)data.displayName=data.n;
     if(!data.av)data.av='🧒';
     if(!data.town)data.town=Array(MSZ*MSZ).fill(null);
