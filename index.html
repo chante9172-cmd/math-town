@@ -134,12 +134,7 @@ var SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 // ============================================================
 
 // ═══════════════════════════════════════════════
-// ★ 在這裡填入你的 Supabase 設定
-// 去 Supabase → Settings → API 找到這兩個值
-// ═══════════════════════════════════════════════
-var SUPA_URL = 'https://bbheqrizaglidbfyrkuq.supabase.co';
-var SUPA_KEY = 'sb_publishable_FwGRDxGgM9vmXOAxwUjdAA_lT683X_o';
-// ═══════════════════════════════════════════════
+// SUPA_URL and SUPA_KEY defined in config script
 
 
 
@@ -927,7 +922,11 @@ async function saveP(){
     window._spT=setTimeout(function(){supabaseSave();},2000);
   }
 } // close saveP
-async function loadPD(name){var k='mt_p_'+name;try{if(window.storage){var r=await window.storage.get(k,true);if(r&&r.value)return JSON.parse(r.value)}}catch(e){}try{var d=localStorage.getItem(k);if(d)return JSON.parse(d)}catch(e){}return null}
+async function loadPD(name){
+  var k='mt_p_'+name;
+  try{var d=localStorage.getItem(k);if(d)return JSON.parse(d)}catch(e){}
+  return null;
+}
 function today(){return new Date().toISOString().slice(0,10)}
 function expN(lv){return lv*100}
 function newP(name,pin,disp){return{name:name,pin:hPin(pin),displayName:disp||name,av:'🧒',coins:150,level:1,exp:0,totalC:0,totalA:0,bestStreak:0,totalCE:150,inv:{},bldgInv:{},town:(function(){var t=Array(MSZ*MSZ).fill(null);t[5*MSZ+5]='WH';return t}()),landSize:20,farms:{},factories:{},animalSlots:{},orders:[],collect:{},mgDone:{},settings:{hw:false},loginDays:1,lastDay:today(),warehouseCap:100,achievements:{},dailyQuest:null,questDone:false}}
@@ -2683,7 +2682,7 @@ async function doReg(){
   if(!disp){err.textContent='請輸入顯示名稱';return}
   if(!/^\d{4}$/.test(pin)){err.textContent='PIN需為4位數字';return}
   if(pin!==pin2){err.textContent='PIN不一致';return}
-  if(!supabase)initSupabase();
+  if(!sb)initSupabase();
   // Check if taken
   if(sb){
     err.textContent='檢查帳號…';
@@ -2743,7 +2742,7 @@ async function doLogin(){
   var err=document.getElementById('lerr');
   if(!name){err.textContent='請輸入帳號';return}
   if(!/^\d{4}$/.test(pin)){err.textContent='PIN需為4位數字';return}
-  if(!supabase)initSupabase();
+  if(!sb)initSupabase();
   err.textContent='登入中…';
   var p=null;
   // Try Supabase first
@@ -2867,7 +2866,7 @@ async function doLogin(){
   if(!/^\d{4}$/.test(pin)){err.textContent='PIN需為4位數字';return}
   err.textContent='登入中…';
   // Ensure Supabase is initialized
-  if(!supabase)initSupabase();
+  if(!sb)initSupabase();
   var p=null;
   // 1. Try Supabase first (cloud - works on any device)
   if(sb){
@@ -4319,7 +4318,7 @@ async function cloudLoad(name){
 function rAccountSync(){
   var a=app();a.innerHTML='';
   // Init supabase
-  if(!supabase&&SUPA_URL)initSupabase();
+  if(!sb&&SUPA_URL)initSupabase();
   var hdr=document.createElement('div');
   hdr.style.cssText='background:linear-gradient(135deg,#1565C0,#7B1FA2);padding:16px 14px;flex-shrink:0;text-align:center';
   hdr.innerHTML='<div style="font-size:1.1rem;font-weight:900;color:#fff;margin-bottom:4px">👤 帳號同步</div>'+
