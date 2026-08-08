@@ -142,7 +142,7 @@ console.log('✅ Supabase client created:', !!sb);
 function initSupabase(){return !!sb;}
 
 async function supabaseSave(){
-  if(!supabase||!S.p)return false;
+  if(!sb||!S.p)return false;
   var code=exportSaveCode();
   if(!code)return false;
   var uname=(S.p.name||S.p.displayName||'').trim().toLowerCase();
@@ -160,7 +160,7 @@ async function supabaseSave(){
       console.error('Supabase save error:',JSON.stringify(res.error));
       return false;
     }
-    return true;
+    console.log('☁️ Auto-synced!');return true;
   }catch(e){console.warn('Supabase save failed:',e);return false}
 }
 
