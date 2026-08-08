@@ -1704,6 +1704,84 @@ function canPlaceMulti(anchorIdx, bId) {
 }
 
 // ---- Draw a proper isometric building with roof ----
+var ISO_BLDG = {
+  DEFAULT: {wallH:28,roofH:20,wallL:'#C8B89A',wallR:'#A89070',roofC:'#8B6914',roofL:'#A07820',roofR:'#7A5C10',winC:'#87CEEB',door:true},
+  // 房子
+  H1:{wallH:24,roofH:18,wallL:'#F5CBA7',wallR:'#E59866',roofC:'#E74C3C',roofL:'#F15A4A',roofR:'#C0392B',winC:'#87CEEB',door:true},
+  H2:{wallH:28,roofH:22,wallL:'#D5E8D4',wallR:'#B8D4B6',roofC:'#2980B9',roofL:'#3498DB',roofR:'#1F618D',winC:'#AED6F1',door:true,chimney:true},
+  H3:{wallH:34,roofH:26,wallL:'#FAD7A0',wallR:'#F0B27A',roofC:'#6C3483',roofL:'#8E44AD',roofR:'#5B2C6F',winC:'#D7BDE2',door:true,chimney:true,floors:2},
+  // 공공시설
+  MK:{wallH:26,roofH:14,wallL:'#FADBD8',wallR:'#F1948A',roofC:'#E74C3C',roofL:'#EC7063',roofR:'#CB4335',winC:'#F9EBEA',door:true},
+  SC:{wallH:30,roofH:18,wallL:'#D6EAF8',wallR:'#AED6F1',roofC:'#2471A3',roofL:'#2E86C1',roofR:'#1A5276',winC:'#EBF5FB',door:true},
+  LB:{wallH:28,roofH:16,wallL:'#FDEBD0',wallR:'#FAD7A0',roofC:'#784212',roofL:'#9A5C1A',roofR:'#5D3712',winC:'#FEF9E7',door:true},
+  HT:{wallH:38,roofH:10,wallL:'#D5D8DC',wallR:'#AAB7B8',roofC:'#1A252F',roofL:'#2C3E50',roofR:'#17202A',winC:'#AED6F1',door:true,flat:true,floors:3},
+  CA:{wallH:44,roofH:30,wallL:'#E8DAEF',wallR:'#C39BD3',roofC:'#76448A',roofL:'#9B59B6',roofR:'#5B2C6F',winC:'#D7BDE2',door:true,chimney:true,tower:true},
+  ZT:{wallH:20,roofH:8,wallL:'#A9CCE3',wallR:'#7FB3D3',roofC:'#1F618D',roofL:'#2E86C1',roofR:'#154360',winC:'#EBF5FB',flat:true},
+  // 工廠
+  MILL: {wallH:36,roofH:12,wallL:'#D5D8DC',wallR:'#AAB7B8',roofC:'#707B7C',roofL:'#909497',roofR:'#5D6D7E',winC:'#D5D8DC',door:true,flat:true,smoke:true},
+  BAKE: {wallH:34,roofH:20,wallL:'#FDEBD0',wallR:'#FAD7A0',roofC:'#E59866',roofL:'#F0A030',roofR:'#C0782A',winC:'#FEF9E7',door:true,smoke:true},
+  DAIRY:{wallH:32,roofH:18,wallL:'#FDFEFE',wallR:'#E8EAED',roofC:'#2471A3',roofL:'#3498DB',roofR:'#1F618D',winC:'#AED6F1',door:true},
+  TEXTILE:{wallH:32,roofH:12,wallL:'#FADBD8',wallR:'#F1948A',roofC:'#A93226',roofL:'#CB4335',roofR:'#7B241C',winC:'#F9EBEA',flat:true,smoke:true},
+  JUICE:{wallH:34,roofH:16,wallL:'#FDFEFE',wallR:'#ABEBC6',roofC:'#1E8449',roofL:'#27AE60',roofR:'#145A32',winC:'#D5F5E3',door:true},
+  CHOCO:{wallH:34,roofH:18,wallL:'#FDEBD0',wallR:'#D4AC0D',roofC:'#4A235A',roofL:'#6C3483',roofR:'#3B1A44',winC:'#D7BDE2',door:true,smoke:true},
+  CANDLE:{wallH:30,roofH:16,wallL:'#FEF9E7',wallR:'#F9E79F',roofC:'#B7770D',roofL:'#D4AC0D',roofR:'#9A7D0A',winC:'#FEF9E7',door:true},
+  WH:{wallH:38,roofH:14,wallL:'#D5D8DC',wallR:'#AAB7B8',roofC:'#E67E22',roofL:'#F39C12',roofR:'#CA6F1E',winC:'#D5D8DC',flat:true,door:true},
+  // 農場
+  FP1:{wallH:8,roofH:0,wallL:'#A9784A',wallR:'#7A5530',roofC:'#5D4037',roofL:'#6D4C41',roofR:'#4E342E',flat:true},
+  FP2:{wallH:10,roofH:0,wallL:'#8D6E40',wallR:'#6D4E20',roofC:'#5D4037',roofL:'#6D4C41',roofR:'#4E342E',flat:true},
+  FP3:{wallH:12,roofH:0,wallL:'#7A5C30',wallR:'#5A3C10',roofC:'#5D4037',roofL:'#6D4C41',roofR:'#4E342E',flat:true},
+  // 動物
+  CHK:{wallH:18,roofH:12,wallL:'#FFF9C4',wallR:'#FFF176',roofC:'#F57F17',roofL:'#F9A825',roofR:'#E65100',winC:'#FFFDE7',door:true},
+  COW:{wallH:22,roofH:14,wallL:'#FDFEFE',wallR:'#D5D8DC',roofC:'#5D4037',roofL:'#795548',roofR:'#4E342E',winC:'#F5F5F5',door:true},
+  SHP:{wallH:20,roofH:12,wallL:'#FDFEFE',wallR:'#ECF0F1',roofC:'#7F8C8D',roofL:'#95A5A6',roofR:'#616A6B',winC:'#EBF5FB',door:true},
+  PIG:{wallH:20,roofH:12,wallL:'#FDEDEC',wallR:'#F5CBA7',roofC:'#CB4335',roofL:'#E74C3C',roofR:'#A93226',winC:'#FDEBD0',door:true},
+};
+
+// ── Colored Pencil Drawing Helpers ──
+function pencilFill(ctx, points, color, alpha){
+  // Draw polygon with colored pencil texture
+  alpha = alpha || 0.85;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.beginPath();
+  ctx.moveTo(points[0][0], points[0][1]);
+  for(var i=1;i<points.length;i++) ctx.lineTo(points[i][0], points[i][1]);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  // Texture overlay - light hatching
+  ctx.globalAlpha = 0.04;
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 0.5;
+  var minX=points.reduce(function(m,p){return Math.min(m,p[0])},Infinity);
+  var maxX=points.reduce(function(m,p){return Math.max(m,p[0])},- Infinity);
+  var minY=points.reduce(function(m,p){return Math.min(m,p[1])},Infinity);
+  var maxY=points.reduce(function(m,p){return Math.max(m,p[1])},- Infinity);
+  ctx.clip();
+  for(var hy=minY;hy<maxY+20;hy+=5){
+    ctx.beginPath();ctx.moveTo(minX,hy);ctx.lineTo(maxX,hy+8);ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function pencilStroke(ctx, points, color, width){
+  // Draw outline with slight imperfection
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width || 1.5;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.globalAlpha = 0.7;
+  ctx.beginPath();
+  ctx.moveTo(points[0][0]+Math.random()*0.5, points[0][1]+Math.random()*0.5);
+  for(var i=1;i<points.length;i++){
+    ctx.lineTo(points[i][0]+Math.random()*0.5, points[i][1]+Math.random()*0.5);
+  }
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawIsoBuilding(ctx, sx, sy, bId, bd, z) {
   var TW = ISO.TW * z, TH = ISO.TH * z;
   var mt = MULTITILE[bId];
@@ -1744,7 +1822,7 @@ function drawIsoBuilding(ctx, sx, sy, bId, bd, z) {
   ctx.lineTo(sx, baseY);
   ctx.lineTo(sx, baseY - wallH);
   ctx.closePath();
-  ctx.fillStyle = cfg.wallR; ctx.fill();
+  pencilFill(ctx, [[sx+ftW/2,baseY-wallH],[sx+ftW/2,baseY],[sx,baseY+TH/2],[sx,baseY+TH/2-wallH]], cfg.wallR);
   ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 1; ctx.stroke();
 
   // LEFT wall
@@ -1754,7 +1832,7 @@ function drawIsoBuilding(ctx, sx, sy, bId, bd, z) {
   ctx.lineTo(sx, baseY);
   ctx.lineTo(sx, baseY - wallH);
   ctx.closePath();
-  ctx.fillStyle = cfg.wallL; ctx.fill();
+  pencilFill(ctx, [[sx-ftW/2,baseY-wallH],[sx,baseY+TH/2-wallH],[sx,baseY+TH/2],[sx-ftW/2,baseY]], cfg.wallL);
   ctx.strokeStyle = 'rgba(0,0,0,0.2)'; ctx.lineWidth = 1; ctx.stroke();
 
   // TOP face (roof base / flat top)
@@ -1777,7 +1855,7 @@ function drawIsoBuilding(ctx, sx, sy, bId, bd, z) {
     ctx.lineTo(sx + ftW/2, topY + TH * mh / 2 - peakH * 0.3);
     ctx.lineTo(sx, topY + TH * mh);
     ctx.closePath();
-    ctx.fillStyle = cfg.roofR; ctx.fill();
+    ctx.globalAlpha=0.82;ctx.fillStyle=cfg.roofR;ctx.fill();ctx.globalAlpha=1;
     ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.stroke();
     // Left slope
     ctx.beginPath();
@@ -1785,10 +1863,17 @@ function drawIsoBuilding(ctx, sx, sy, bId, bd, z) {
     ctx.lineTo(sx - ftW/2, topY + TH * mh / 2 - peakH * 0.3);
     ctx.lineTo(sx, topY + TH * mh);
     ctx.closePath();
-    ctx.fillStyle = cfg.roofL; ctx.fill();
+    ctx.globalAlpha=0.88;ctx.fillStyle=cfg.roofL;ctx.fill();ctx.globalAlpha=1;
     ctx.strokeStyle = 'rgba(0,0,0,0.15)'; ctx.stroke();
   }
 
+  // Pencil outline on walls
+  ctx.save();ctx.globalAlpha=0.35;ctx.strokeStyle='#2C1810';ctx.lineWidth=1.2*z;ctx.lineJoin='round';
+  ctx.beginPath();
+  ctx.moveTo(sx-ftW/2,baseY-wallH);ctx.lineTo(sx,baseY-wallH+TH/2);
+  ctx.lineTo(sx+ftW/2,baseY-wallH);ctx.lineTo(sx+ftW/2,baseY);
+  ctx.lineTo(sx,baseY+TH/2);ctx.lineTo(sx-ftW/2,baseY);ctx.closePath();ctx.stroke();
+  ctx.restore();
   // Windows on right wall
   if (cfg.windows && z > 0.4) {
     var numW = Math.max(1, mw * 2 - 1);
@@ -3088,10 +3173,20 @@ function fClick(idx,bd){
     f.done=false;f.crop=null;f.endTime=0;
     saveP();rTown();return
   }
-  // If growing - show time
-  if(f.endTime&&f.endTime>Date.now()){
-    toast('還需 '+fmt(Math.max(0,Math.round((f.endTime-Date.now())/1000))));
-    return
+  // If growing - check if done (might not have been updated by tick yet)
+  if(f.endTime&&f.crop){
+    if(Date.now()>=f.endTime){
+      // Time's up! Mark as done
+      f.done=true;
+      if(warehouseFull()){toast('⚠️ 倉庫已滿！先出售貨物');return}
+      var cr2=CR[f.crop];
+      addG(cr2.gives,cr2.amt);checkDailyQuest('harvest',1);
+      toast('收穫 '+cr2.e+' ×'+cr2.amt+'！');
+      f.done=false;f.crop=null;f.endTime=0;saveP();rTown();return;
+    } else {
+      toast('還需 '+fmt(Math.max(0,Math.round((f.endTime-Date.now())/1000))));
+      return;
+    }
   }
   // Empty - show crop picker
   showCropPicker(idx);
@@ -3133,6 +3228,8 @@ function showCropPicker(idx){
 }
 function aClick(idx,bd){
   var ani=AN[bd.animal],a=S.p.animalSlots[idx]||(S.p.animalSlots[idx]={animal:bd.animal,fed:false,ready:false});
+  // Auto-check if ready time passed
+  if(a.fed&&!a.ready&&a.readyTime&&Date.now()>=a.readyTime){a.ready=true;}
   if(a.ready){var g=GD[ani.gives];addG(ani.gives,ani.giveAmt);toast('收集 '+(g?g.e:'')+ani.giveAmt);a.ready=false;a.fed=false;a.readyTime=0;saveP();rTown()}
   else if(!a.fed){if(!hasG(ani.feed,ani.feedAmt)){toast('需要 '+(GD[ani.feed]?GD[ani.feed].e+GD[ani.feed].n:ani.feed)+' ×'+ani.feedAmt);return}remG(ani.feed,ani.feedAmt);a.fed=true;a.readyTime=Date.now()+ani.time*1000;saveP();toast('餵食！');rTown()}
   else toast('還需 '+fmt(Math.max(0,Math.round((a.readyTime-Date.now())/1000))))
@@ -3444,7 +3541,9 @@ function rFac(){
       });
     } else if(fac.queue.length>0){
       var j=fac.queue[0];
-      var left=Math.max(0,Math.ceil((j.endTime-Date.now())/1000));
+      var now2=Date.now();
+      if(j.endTime&&now2>=j.endTime){j.done=true;saveP();renderCollect();return;}
+      var left=Math.max(0,Math.ceil((j.endTime-now2)/1000));
       var mins=Math.floor(left/60),secs=left%60;
       ca.style.cssText='background:#E3F2FD;border-radius:12px;padding:10px;text-align:center;margin-bottom:10px';
       ca.innerHTML='<div style="font-size:.72rem;color:#1565C0;font-weight:700">⏳ 製作中…</div>'+
@@ -3488,7 +3587,7 @@ function rFac(){
   // Timer to update countdown
   var tickFac=setInterval(function(){
     if(S.sc!=='factory'){clearInterval(tickFac);return;}
-    if(fac.queue.length>0&&!fac.queue[0].done&&Date.now()>=fac.queue[0].endTime){
+    if(fac.queue.length>0&&!fac.queue[0].done&&fac.queue[0].endTime&&Date.now()>=fac.queue[0].endTime){
       fac.queue[0].done=true;saveP();renderCollect();
     } else {renderCollect();}
   },1000);
@@ -4695,6 +4794,7 @@ function checkCitizenRequest(){
 var COLLECTION={
   crops:{name:'農作物',items:['wheat_g','corn_g','tomato','berry','carrot','potato','pumpkin','cotton','sugarcane','indigo']},
   goods:{name:'加工品',items:['flour','bread','cake','cookie','pie','butter','cheese','sugar','fabric','sweater','silk']},
+  feeds:{name:'動物飼料',items:['feed','cow_feed','sheep_feed','pig_feed']},
   animals:{name:'動物產品',items:['egg','milk','wool','truffle']},
 };
 function rCollection(){
